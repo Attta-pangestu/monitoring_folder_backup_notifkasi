@@ -15,6 +15,171 @@ class ZipMetadataViewer:
     def __init__(self):
         self.latest_zips = []
     
+    def check_zip_integrity(self, zip_path: str) -> Dict:
+        """
+        Memeriksa integritas file ZIP
+        
+        Args:
+            zip_path: Path ke file ZIP
+            
+        Returns:
+            Dictionary dengan hasil pemeriksaan integritas
+        """
+        result = {
+            'is_valid': False,
+            'total_files': 0,
+            'corrupted_files': [],
+            'error': None,
+            'file_path': zip_path,
+            'file_size': 0,
+            'analysis_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        try:
+            # Cek apakah file ada
+            if not os.path.exists(zip_path):
+                result['error'] = f"File tidak ditemukan: {zip_path}"
+                return result
+            
+            # Dapatkan ukuran file
+            result['file_size'] = os.path.getsize(zip_path)
+            
+            # Test buka ZIP file
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                # Test integrity dengan testzip()
+                bad_file = zip_ref.testzip()
+                
+                if bad_file is not None:
+                    result['corrupted_files'].append(bad_file)
+                    result['error'] = f"File rusak ditemukan: {bad_file}"
+                else:
+                    result['is_valid'] = True
+                
+                # Hitung total file
+                result['total_files'] = len(zip_ref.namelist())
+                
+                # Coba baca info setiap file
+                for file_info in zip_ref.infolist():
+                    try:
+                        # Test baca header file
+                        zip_ref.getinfo(file_info.filename)
+                    except Exception as e:
+                        result['corrupted_files'].append(file_info.filename)
+                        if result['error'] is None:
+                            result['error'] = f"Error membaca file: {file_info.filename}"
+                
+                # Update status berdasarkan file rusak
+                if result['corrupted_files']:
+                    result['is_valid'] = False
+                    
+        except zipfile.BadZipFile:
+            result['error'] = "File ZIP rusak atau tidak valid"
+        except Exception as e:
+            result['error'] = f"Error: {str(e)}"
+        
+        return result
+    
+    def extract_zip_metadata(self, zip_path: str) -> Dict:
+        """
+        Mengekstrak metadata lengkap dari file ZIP
+        
+        Args:
+            zip_path: Path ke file ZIP
+            
+        Returns:
+            Dictionary dengan metadata ZIP
+        """
+        result = {
+            'success': False,
+            'file_path': zip_path,
+            'file_name': os.path.basename(zip_path),
+            'file_size': 0,
+            'file_size_mb': 0,
+            'created_time': None,
+            'modified_time': None,
+            'total_files': 0,
+            'total_compressed_size': 0,
+            'total_uncompressed_size': 0,
+            'compression_ratio': 0,
+            'files': [],
+            'bak_files': [],
+            'directories': [],
+            'file_types': {},
+            'error': None,
+            'analysis_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        try:
+            # Informasi file sistem
+            if os.path.exists(zip_path):
+                stat = os.stat(zip_path)
+                result['file_size'] = stat.st_size
+                result['file_size_mb'] = round(stat.st_size / (1024 * 1024), 2)
+                result['created_time'] = datetime.fromtimestamp(stat.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
+                result['modified_time'] = datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Analisis isi ZIP
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                files_info = []
+                bak_files = []
+                directories = set()
+                file_types = {}
+                total_compressed = 0
+                total_uncompressed = 0
+                
+                for file_info in zip_ref.infolist():
+                    # Informasi file
+                    file_detail = {
+                        'filename': file_info.filename,
+                        'size_bytes': file_info.file_size,
+                        'size_mb': round(file_info.file_size / (1024 * 1024), 2),
+                        'compressed_size': file_info.compress_size,
+                        'compression_ratio': round((1 - file_info.compress_size / file_info.file_size) * 100, 2) if file_info.file_size > 0 else 0,
+                        'date_time': datetime(*file_info.date_time).strftime('%Y-%m-%d %H:%M:%S') if file_info.date_time else 'Unknown',
+                        'is_directory': file_info.filename.endswith('/'),
+                        'file_extension': os.path.splitext(file_info.filename)[1].lower()
+                    }
+                    
+                    files_info.append(file_detail)
+                    
+                    # Akumulasi ukuran
+                    total_compressed += file_info.compress_size
+                    total_uncompressed += file_info.file_size
+                    
+                    # Cek apakah file BAK
+                    if file_info.filename.lower().endswith('.bak'):
+                        bak_files.append(file_detail)
+                    
+                    # Direktori
+                    if file_info.filename.endswith('/'):
+                        directories.add(file_info.filename)
+                    else:
+                        # Tambahkan direktori parent
+                        parent_dir = os.path.dirname(file_info.filename)
+                        if parent_dir:
+                            directories.add(parent_dir + '/')
+                    
+                    # Tipe file
+                    ext = file_detail['file_extension']
+                    if ext:
+                        file_types[ext] = file_types.get(ext, 0) + 1
+                
+                # Update hasil
+                result['success'] = True
+                result['total_files'] = len(files_info)
+                result['total_compressed_size'] = total_compressed
+                result['total_uncompressed_size'] = total_uncompressed
+                result['compression_ratio'] = round((1 - total_compressed / total_uncompressed) * 100, 2) if total_uncompressed > 0 else 0
+                result['files'] = files_info
+                result['bak_files'] = bak_files
+                result['directories'] = sorted(list(directories))
+                result['file_types'] = file_types
+                
+        except Exception as e:
+            result['error'] = str(e)
+        
+        return result
+    
     def find_latest_zip_files(self, folder_path: str, days: int = 7) -> List[Dict]:
         """
         Mencari file ZIP terbaru dalam folder

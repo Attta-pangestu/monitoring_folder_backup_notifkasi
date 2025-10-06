@@ -1,0 +1,26 @@
+{
+  "name": "whatsapp-backup-monitor",
+  "version": "1.0.0",
+  "description": "WhatsApp bot for database backup monitoring",
+  "main": "wa_backup_monitor.js",
+  "scripts": {
+    "start": "node wa_backup_monitor.js",
+    "dev": "nodemon wa_backup_monitor.js"
+  },
+  "keywords": [
+    "whatsapp",
+    "backup",
+    "monitoring",
+    "database"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "whatsapp-web.js": "^1.34.1",
+    "qrcode-terminal": "^0.12.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

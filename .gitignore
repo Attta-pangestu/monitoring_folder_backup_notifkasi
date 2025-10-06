@@ -26,3 +26,4 @@ Thumbs.db
 temp_extract/
 date_extraction_output/
 real_test_backups/
+node_modules/

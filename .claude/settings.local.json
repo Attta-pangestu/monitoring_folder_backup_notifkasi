@@ -6,7 +6,10 @@
       "Bash(python:*)",
       "mcp__obsidian-mcp-tools__get_vault_file",
       "Bash(sqlcmd:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "mcp__obsidian-mcp-tools__get_server_info",
+      "mcp__obsidian-mcp-tools__search_vault_simple",
+      "mcp__obsidian-mcp-tools__append_to_vault_file"
     ],
     "deny": [],
     "ask": []
