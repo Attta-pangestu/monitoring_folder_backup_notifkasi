@@ -1,0 +1,37 @@
+# Python Dependencies for Backup Monitor Application
+
+# UI Framework
+PyQt5>=5.15.0
+PyQt5-sip>=12.8.0
+
+# PDF Generation
+reportlab>=3.5.0
+
+# Database (Optional - for future enhancements)
+SQLAlchemy>=1.4.0
+
+# Environment Variables
+python-dotenv>=0.19.0
+
+# File System Utilities
+pathlib>=1.0.1
+
+# Date/Time Utilities
+python-dateutil>=2.8.0
+
+# HTTP Requests (if needed for API calls)
+requests>=2.25.0
+
+# JSON Processing
+jsonschema>=3.2.0
+
+# Progress Bars (Optional)
+tqdm>=4.60.0
+
+# Testing
+pytest>=6.2.0
+pytest-qt>=4.0.0
+
+# Development Tools
+black>=21.0.0
+flake8>=3.9.0

@@ -421,3 +421,142 @@ class EnhancedEmailNotifier:
         """
 
         return html
+
+    def send_test_email(self, test_data: Dict[str, Any]) -> tuple:
+        """Kirim email test untuk konfigurasi"""
+        try:
+            # Validate required fields
+            if not self.sender_email or not self.sender_password or not self.receiver_email:
+                return False, "Konfigurasi email tidak lengkap"
+
+            # Create message
+            msg = MIMEMultipart()
+            msg['From'] = self.sender_email
+            msg['To'] = self.receiver_email
+
+            report_time = test_data.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            subject = f"🧪 Email Test - Simple Backup Monitor"
+            msg['Subject'] = subject
+
+            # Generate HTML test body
+            html_body = f"""
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                    .header {{ background-color: #e8f5e8; padding: 20px; border-radius: 5px; margin-bottom: 20px; text-align: center; }}
+                    .content {{ padding: 20px; background-color: #f9f9f9; border-radius: 5px; }}
+                    .success {{ color: #28a745; font-weight: bold; }}
+                    table {{ border-collapse: collapse; width: 100%; margin: 15px 0; }}
+                    th, td {{ border: 1px solid #ddd; padding: 10px; text-align: left; }}
+                    th {{ background-color: #f2f2f2; }}
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h2>🧪 Email Test Report</h2>
+                    <p><strong>Simple Backup Monitor System</strong></p>
+                    <p><em>Generated on: {report_time}</em></p>
+                </div>
+
+                <div class="content">
+                    <h3 class="success">✅ Email Configuration Test Successful!</h3>
+
+                    <table>
+                        <tr><th>Configuration Item</th><th>Status</th></tr>
+                        <tr><td>SMTP Server</td><td class="success">{self.smtp_server}:{self.smtp_port}</td></tr>
+                        <tr><td>Sender Email</td><td class="success">{self.sender_email}</td></tr>
+                        <tr><td>Receiver Email</td><td class="success">{self.receiver_email}</td></tr>
+                        <tr><td>Connection Type</td><td class="success">TLS/STARTTLS</td></tr>
+                    </table>
+
+                    <h4>Test Message:</h4>
+                    <p>{test_data.get('message', 'Ini adalah email test dari Simple Backup Monitor')}</p>
+
+                    <h4>System Information:</h4>
+                    <table>
+                        <tr><td>Application</td><td>Simple Backup Monitor v1.0</td></tr>
+                        <tr><td>Test Type</td><td>Configuration Test</td></tr>
+                        <tr><td>Status</td><td class="success">Success</td></tr>
+                    </table>
+
+                    <div style="margin-top: 20px; padding: 15px; background-color: #e8f5e8; border-radius: 5px;">
+                        <p><strong>🎉 Email configuration is working correctly!</strong></p>
+                        <p>The system is ready to send backup analysis reports.</p>
+                    </div>
+                </div>
+
+                <div style="margin-top: 30px; padding: 15px; background-color: #f0f0f0; border-radius: 5px; text-align: center;">
+                    <p><em>Auto-generated test email - Simple Backup Monitor</em></p>
+                    <p><small>For questions, contact your system administrator</small></p>
+                </div>
+            </body>
+            </html>
+            """
+
+            msg.attach(MIMEText(html_body, 'html'))
+
+            # Send email
+            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            server.starttls()
+            server.ehlo()
+            server.login(self.sender_email, self.sender_password)
+            server.sendmail(self.sender_email, self.receiver_email, msg.as_string())
+            server.quit()
+
+            return True, "Email test berhasil dikirim"
+
+        except Exception as e:
+            return False, f"Gagal kirim email test: {str(e)}"
+
+    def send_auto_analysis_report(self, analysis_results: List[Dict[str, Any]], pdf_path: Optional[str] = None) -> tuple:
+        """Send auto analysis report for multiple files - wrapper method"""
+        return self.send_auto_analysis_report_email(analysis_results, pdf_path)
+
+    def send_auto_analysis_report_email(self, analysis_results: List[Dict[str, Any]], pdf_path: Optional[str] = None) -> tuple:
+        """Send auto analysis report for multiple files"""
+        try:
+            # Validate required fields
+            if not self.sender_email or not self.sender_password or not self.receiver_email:
+                return False, "Konfigurasi email tidak lengkap. Silakan periksa email pengirim, password, dan email penerima."
+
+            # Create message
+            msg = MIMEMultipart()
+            msg['From'] = self.sender_email
+            msg['To'] = self.receiver_email
+
+            # Generate subject
+            report_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            subject = f"📊 Auto Backup Analysis Report - {report_time}"
+            msg['Subject'] = subject
+
+            # Generate HTML body
+            html_body = self._generate_multi_file_html_report(analysis_results)
+            msg.attach(MIMEText(html_body, 'html'))
+
+            # Attach PDF if provided
+            if pdf_path and os.path.exists(pdf_path):
+                self._attach_pdf(msg, pdf_path)
+
+            # Connect to SMTP server and send
+            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            server.starttls()
+            server.ehlo()
+
+            # Login with error handling
+            try:
+                server.login(self.sender_email, self.sender_password)
+            except smtplib.SMTPAuthenticationError as auth_error:
+                server.quit()
+                return False, f"Autentikasi gagal: {str(auth_error)}. Silakan periksa email dan app password Anda."
+
+            text = msg.as_string()
+            server.sendmail(self.sender_email, self.receiver_email, text)
+            server.quit()
+
+            return True, "Email auto analysis report berhasil dikirim"
+
+        except smtplib.SMTPException as smtp_error:
+            return False, f"Error SMTP: {str(smtp_error)}"
+        except Exception as e:
+            return False, f"Gagal mengirim email: {str(e)}"

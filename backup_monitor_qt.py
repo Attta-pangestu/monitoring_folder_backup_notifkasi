@@ -989,8 +989,10 @@ class BackupAnalysisWorker(QRunnable):
             signals.progress.emit(f"❌ {error_msg}")
             return {
                 'success': False,
+                'type': 'bak_files',
                 'error': error_msg,
-                'bak_analyses': []
+                'bak_analyses': [],
+                'backup_directory': backup_dir
             }
         
         signals.progress.emit(f"📊 Total BAK files found: {len(bak_files)}")
@@ -1000,8 +1002,10 @@ class BackupAnalysisWorker(QRunnable):
             signals.progress.emit(f"❌ {error_msg}")
             return {
                 'success': False,
+                'type': 'bak_files',
                 'error': error_msg,
-                'bak_analyses': []
+                'bak_analyses': [],
+                'backup_directory': backup_dir
             }
         
         signals.progress.emit(f"Found {len(bak_files)} BAK files for analysis")
@@ -1033,6 +1037,7 @@ class BackupAnalysisWorker(QRunnable):
         
         return {
             'success': True,
+            'type': 'bak_files',
             'backup_directory': backup_dir,
             'total_bak_files': len(bak_files),
             'successful_analyses': len(successful_analyses),
@@ -1659,6 +1664,16 @@ class BackupMonitorWindow(QMainWindow):
         email_action.triggered.connect(self.send_backup_report)
         toolbar.addAction(email_action)
 
+        # Add summary email button
+        summary_email_action = QAction("📊 Email Summary", self)
+        summary_email_action.triggered.connect(self.send_summary_email)
+        toolbar.addAction(summary_email_action)
+
+        # Add debug data status button
+        debug_status_action = QAction("🔍 Debug Data", self)
+        debug_status_action.triggered.connect(self.show_analysis_data_status)
+        toolbar.addAction(debug_status_action)
+
     def load_email_config(self):
         """Load email configuration"""
         config = {
@@ -2203,6 +2218,13 @@ class BackupMonitorWindow(QMainWindow):
             self.display_zip_analysis_results(result)
             self.status_bar.showMessage("ZIP metadata analysis completed")
 
+            # Store analysis result for email
+            if not hasattr(self, 'analysis_results'):
+                self.analysis_results = []
+            self.analysis_results.append(result)
+            self.append_terminal_output(f"💾 Disimpan hasil analisis ZIP: {result.get('zip_file', 'Unknown')}")
+            logger.info(f"Stored ZIP analysis result for: {result.get('zip_file', 'Unknown')}")
+
     def on_bak_analysis_complete(self, result):
         """Handle BAK analysis complete"""
         self.hide_progress()
@@ -2210,6 +2232,13 @@ class BackupMonitorWindow(QMainWindow):
         if result.get('type') == 'bak_files':
             self.display_bak_analysis_results(result)
             self.status_bar.showMessage("BAK files analysis completed")
+
+            # Store analysis result for email
+            if not hasattr(self, 'analysis_results'):
+                self.analysis_results = []
+            self.analysis_results.append(result)
+            self.append_terminal_output(f"💾 Disimpan hasil analisis BAK: {result.get('backup_directory', 'Unknown')}")
+            logger.info(f"Stored BAK analysis result for: {result.get('backup_directory', 'Unknown')}")
 
     def on_zip_integrity_complete(self, result):
         """Handle ZIP integrity check complete"""
@@ -4229,15 +4258,15 @@ Backup Monitor System
     def on_bak_analysis_complete_terminal(self, result):
         """Handle BAK analysis completion for terminal output"""
         self.hide_progress()
-        
+
         if result.get('success', False):
             self.append_terminal_output("✅ Analisis BAK selesai!")
-            
+
             # Display results in terminal format
             if 'bak_analyses' in result:
                 self.append_terminal_output("📊 HASIL ANALISIS BAK:")
                 self.append_terminal_output("=" * 60)
-                
+
                 for analysis in result['bak_analyses']:
                     self.append_terminal_output(f"📄 File: {analysis.get('file_name', 'Unknown')}")
                     self.append_terminal_output(f"   💾 Database: {analysis.get('database_name', 'N/A')}")
@@ -4245,9 +4274,36 @@ Backup Monitor System
                     self.append_terminal_output(f"   📏 Size: {analysis.get('file_size_mb', 0):.1f} MB")
                     self.append_terminal_output(f"   🔧 Type: {analysis.get('backup_type', 'N/A')}")
                     self.append_terminal_output("")
-                
+
             # Also display in regular details area for compatibility
             self.display_bak_analysis_results(result)
+
+            # Store analysis result for email (if not already stored)
+            if not hasattr(self, 'analysis_results'):
+                self.analysis_results = []
+
+            # Check if this result is already stored
+            result_identifier = result.get('backup_directory', '') or result.get('zip_file', '')
+            already_stored = any(
+                (r.get('backup_directory', '') or r.get('zip_file', '')) == result_identifier
+                for r in self.analysis_results
+            )
+
+            if not already_stored:
+                self.analysis_results.append(result)
+                self.append_terminal_output(f"💾 Disimpan hasil analisis BAK terminal: {result_identifier}")
+                logger.info(f"Stored BAK terminal analysis result for: {result_identifier}")
+
+            # Ask if user wants to send email summary
+            reply = QMessageBox.question(
+                self,
+                "Analisis Selesai",
+                "Analisis BAK dan ZIP telah selesai.\n\nApakah Anda ingin mengirim email summary hasil analisis?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+
+            if reply == QMessageBox.Yes:
+                self.send_summary_email()
         else:
             error_msg = result.get('error', 'Unknown error')
             self.append_terminal_output(f"❌ Analisis BAK gagal: {error_msg}")
@@ -4410,6 +4466,598 @@ Backup Monitor System
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error generating PDF report: {str(e)}")
             self.append_terminal_output(f"Error generating PDF report: {str(e)}")
+
+    def show_analysis_data_status(self):
+        """Show status of available analysis data for debugging"""
+        status_msg = "🔍 STATUS DATA ANALISIS:\n"
+        status_msg += "=" * 50 + "\n\n"
+
+        # Check analysis_results
+        if hasattr(self, 'analysis_results') and self.analysis_results:
+            status_msg += f"📊 analysis_results: {len(self.analysis_results)} items\n"
+            for i, result in enumerate(self.analysis_results):
+                result_type = result.get('type', 'Unknown')
+                if result_type == 'zip_metadata':
+                    status_msg += f"  {i+1}. ZIP: {os.path.basename(result.get('zip_file', 'Unknown'))}\n"
+                elif result_type == 'bak_files':
+                    status_msg += f"  {i+1}. BAK: {result.get('backup_directory', 'Unknown')}\n"
+                else:
+                    status_msg += f"  {i+1}. {result_type}: Unknown\n"
+        else:
+            status_msg += "📊 analysis_results: Tidak ada data\n"
+
+        # Check manual_extraction_results
+        if hasattr(self, 'manual_extraction_results') and self.manual_extraction_results:
+            status_msg += f"📂 manual_extraction_results: {len(self.manual_extraction_results)} items\n"
+            successful = sum(1 for r in self.manual_extraction_results if r.get('processing_successful', False))
+            status_msg += f"   Berhasil: {successful}, Gagal: {len(self.manual_extraction_results) - successful}\n"
+        else:
+            status_msg += "📂 manual_extraction_results: Tidak ada data\n"
+
+        # Check current_files
+        if hasattr(self, 'current_files') and self.current_files:
+            status_msg += f"📁 current_files: {len(self.current_files)} items\n"
+            complete = sum(1 for f in self.current_files if f.get('analysis_complete', False))
+            status_msg += f"   Complete: {complete}, Incomplete: {len(self.current_files) - complete}\n"
+        else:
+            status_msg += "📁 current_files: Tidak ada data\n"
+
+        # Show total available data
+        total_zip = 0
+        total_bak = 0
+
+        if hasattr(self, 'analysis_results') and self.analysis_results:
+            for result in self.analysis_results:
+                if result.get('type') == 'zip_metadata':
+                    total_zip += 1
+                    if 'backup_analysis' in result:
+                        total_bak += len(result['backup_analysis'].get('bak_files', []))
+                    elif 'bak_analyses' in result:
+                        total_bak += len(result['bak_analyses'])
+                elif result.get('type') == 'bak_files':
+                    total_bak += len(result.get('bak_analyses', []))
+
+        if hasattr(self, 'manual_extraction_results') and self.manual_extraction_results:
+            for result in self.manual_extraction_results:
+                if result.get('processing_successful', False):
+                    total_zip += 1
+                    total_bak += len(result.get('bak_analyses', []))
+
+        status_msg += f"\n📈 TOTAL DATA YANG TERSEDIA:\n"
+        status_msg += f"   File ZIP: {total_zip}\n"
+        status_msg += f"   File BAK: {total_bak}\n"
+
+        QMessageBox.information(self, "Status Data Analisis", status_msg)
+
+    def send_summary_email(self):
+        """Send summary email with current analysis results"""
+        try:
+            self.show_progress("Mengumpulkan data analisis...")
+            self.append_terminal_output("📊 Mengumpulkan data untuk email summary...")
+
+            # Debug: Check what data is available
+            self.append_terminal_output("🔍 DEBUG: Memeriksa ketersediaan data...")
+
+            # Initialize analysis storage if not exists
+            if not hasattr(self, 'analysis_results'):
+                self.analysis_results = []
+                self.append_terminal_output("📝 Inisialisasi analysis_results storage")
+
+            # Check available data sources
+            available_sources = []
+            if hasattr(self, 'manual_extraction_results') and self.manual_extraction_results:
+                available_sources.append(f"manual_extraction_results ({len(self.manual_extraction_results)} items)")
+
+            if hasattr(self, 'current_files') and self.current_files:
+                available_sources.append(f"current_files ({len(self.current_files)} items)")
+
+            if hasattr(self, 'analysis_results') and self.analysis_results:
+                available_sources.append(f"analysis_results ({len(self.analysis_results)} items)")
+
+            self.append_terminal_output(f"📊 Sumber data tersedia: {', '.join(available_sources) if available_sources else 'Tidak ada'}")
+
+            # Collect current analysis results
+            zip_results = []
+            bak_results = []
+
+            # Method 1: Get from analysis_results (primary)
+            if hasattr(self, 'analysis_results') and self.analysis_results:
+                self.append_terminal_output(f"🔍 Mengumpulkan dari analysis_results...")
+                for result in self.analysis_results:
+                    if result.get('type') in ['zip_metadata', 'bak_files']:
+                        converted = self._convert_analysis_result_to_email_format(result)
+                        if converted:
+                            zip_results.append(converted)
+                            bak_results.extend(converted.get('bak_analyses', []))
+                            self.append_terminal_output(f"✅ Ditambahkan dari analysis_results: {os.path.basename(converted.get('zip_file', 'Unknown'))}")
+
+            # Method 2: Get from manual extraction results
+            if hasattr(self, 'manual_extraction_results') and self.manual_extraction_results:
+                self.append_terminal_output(f"🔍 Mengumpulkan dari manual_extraction_results...")
+                for result in self.manual_extraction_results:
+                    if result.get('processing_successful', False):
+                        converted = self._convert_manual_result_to_email_format(result)
+                        if converted:
+                            zip_results.append(converted)
+                            bak_results.extend(converted.get('bak_analyses', []))
+                            self.append_terminal_output(f"✅ Ditambahkan dari manual: {os.path.basename(converted.get('zip_file', 'Unknown'))}")
+
+            # Method 3: Get from current files (if available)
+            if hasattr(self, 'current_files') and self.current_files:
+                self.append_terminal_output(f"🔍 Mengumpulkan dari current_files...")
+                for file_info in self.current_files:
+                    if file_info.get('analysis_complete', False):
+                        converted = self._convert_current_file_to_email_format(file_info)
+                        if converted:
+                            zip_results.append(converted)
+                            bak_results.extend(converted.get('bak_analyses', []))
+                            self.append_terminal_output(f"✅ Ditambahkan dari current: {os.path.basename(converted.get('zip_file', 'Unknown'))}")
+
+            # Remove duplicates based on zip_file path
+            unique_zip_results = []
+            seen_paths = set()
+            for result in zip_results:
+                zip_path = result.get('zip_file', '')
+                if zip_path and zip_path not in seen_paths:
+                    unique_zip_results.append(result)
+                    seen_paths.add(zip_path)
+
+            self.append_terminal_output(f"📊 Total unik: {len(unique_zip_results)} ZIP, {len(bak_results)} BAK")
+
+            # Debug: Show what we found
+            if unique_zip_results:
+                self.append_terminal_output("🔍 DEBUG: Data yang ditemukan:")
+                for i, result in enumerate(unique_zip_results[:3]):  # Show first 3
+                    self.append_terminal_output(f"  {i+1}. {result.get('zip_file', 'Unknown')} - {len(result.get('bak_analyses', []))} BAK")
+                if len(unique_zip_results) > 3:
+                    self.append_terminal_output(f"  ... dan {len(unique_zip_results) - 3} lainnya")
+            else:
+                self.append_terminal_output("🔍 DEBUG: Tidak ada data ZIP yang ditemukan")
+
+            if not unique_zip_results:
+                self.append_terminal_output("⚠️ Tidak ada data analisis yang tersedia untuk dikirim")
+                QMessageBox.warning(self, "Warning", "Tidak ada data analisis yang tersedia untuk dikirim via email.\n\nPastikan Anda telah melakukan analisis ZIP/BAK terlebih dahulu.")
+                self.hide_progress()
+                return
+
+            # Send email summary
+            self.send_backup_summary_email(unique_zip_results, bak_results)
+            self.hide_progress()
+
+        except Exception as e:
+            logger.error(f"Error in send_summary_email: {str(e)}")
+            self.append_terminal_output(f"❌ Error mengirim summary email: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error mengirim summary email: {str(e)}")
+            self.hide_progress()
+
+    def _convert_analysis_result_to_email_format(self, result):
+        """Convert analysis result to email format"""
+        try:
+            if result.get('type') == 'zip_metadata':
+                return {
+                    'zip_file': result.get('zip_file', ''),
+                    'file_size_mb': result.get('zip_integrity', {}).get('total_size', 0) / (1024*1024),
+                    'integrity_check': result.get('zip_integrity', {}),
+                    'bak_analyses': self._extract_bak_analyses_from_result(result),
+                    'metadata': {
+                        'creation_date': result.get('analysis_time', ''),
+                        'analysis_time': result.get('analysis_time', '')
+                    }
+                }
+            elif result.get('type') == 'bak_files':
+                # For BAK-only analysis, create a ZIP-like entry
+                return {
+                    'zip_file': result.get('backup_directory', ''),
+                    'file_size_mb': 0,  # Not applicable for BAK-only
+                    'integrity_check': {'is_valid': True},  # Assume valid if we got here
+                    'bak_analyses': result.get('bak_analyses', []),
+                    'metadata': {
+                        'creation_date': result.get('analysis_time', ''),
+                        'analysis_time': result.get('analysis_time', '')
+                    }
+                }
+        except Exception as e:
+            logger.error(f"Error converting analysis result: {str(e)}")
+        return None
+
+    def _convert_manual_result_to_email_format(self, result):
+        """Convert manual extraction result to email format"""
+        try:
+            return {
+                'zip_file': result.get('zip_file', ''),
+                'file_size_mb': result.get('file_size_mb', 0),
+                'integrity_check': result.get('integrity_check', {}),
+                'bak_analyses': result.get('bak_analyses', []),
+                'metadata': result.get('metadata', {})
+            }
+        except Exception as e:
+            logger.error(f"Error converting manual result: {str(e)}")
+        return None
+
+    def _convert_current_file_to_email_format(self, file_info):
+        """Convert current file info to email format"""
+        try:
+            return {
+                'zip_file': file_info.get('filename', ''),
+                'file_size_mb': file_info.get('file_size_mb', 0),
+                'integrity_check': file_info.get('integrity_check', {}),
+                'bak_analyses': file_info.get('bak_analyses', []),
+                'metadata': file_info.get('metadata', {})
+            }
+        except Exception as e:
+            logger.error(f"Error converting current file: {str(e)}")
+        return None
+
+    def _extract_bak_analyses_from_result(self, result):
+        """Extract BAK analyses from different result structures"""
+        bak_analyses = []
+
+        # Try different structures
+        if 'backup_analysis' in result:
+            backup_analysis = result['backup_analysis']
+            for bak_file in backup_analysis.get('bak_files', []):
+                bak_analyses.append({
+                    'file_name': bak_file.get('filename', ''),
+                    'file_size_mb': bak_file.get('size', 0) / (1024*1024),
+                    'analysis': {
+                        'backup_type': 'Unknown',
+                        'database_name': 'Unknown',
+                        'backup_date': bak_file.get('modified', 'Unknown'),
+                        'database_info': {}
+                    }
+                })
+
+        elif 'bak_analyses' in result:
+            bak_analyses.extend(result['bak_analyses'])
+
+        return bak_analyses
+
+    def send_backup_summary_email(self, zip_analysis_results=None, bak_analysis_results=None):
+        """Send email summary after BAK and ZIP analysis is completed"""
+        try:
+            # Load email configuration
+            self.update_email_config()
+
+            # Create email notifier
+            email_notifier = EmailNotifier()
+            email_notifier.sender_email = self.email_config.get('sender_email', '')
+            email_notifier.sender_password = self.email_config.get('sender_password', '')
+            email_notifier.receiver_email = self.email_config.get('receiver_email', '')
+
+            # Generate report date
+            report_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            # Generate email content
+            subject = f"LAPORAN SUMMARY ANALISIS BACKUP - {report_date}"
+
+            body = self._generate_backup_summary_html(zip_analysis_results, bak_analysis_results)
+
+            # Send email
+            success, message = email_notifier.send_notification(subject, body)
+
+            if success:
+                logger.info("Backup summary email sent successfully")
+                self.append_terminal_output("✅ Laporan summary backup berhasil dikirim via email")
+                QMessageBox.information(self, "Success", "Laporan summary backup berhasil dikirim via email")
+            else:
+                logger.error(f"Failed to send backup summary email: {message}")
+                self.append_terminal_output(f"❌ Gagal mengirim laporan summary email: {message}")
+                QMessageBox.warning(self, "Warning", f"Gagal mengirim laporan summary email: {message}")
+
+        except Exception as e:
+            logger.error(f"Error sending backup summary email: {str(e)}")
+            self.append_terminal_output(f"❌ Error mengirim laporan summary email: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error mengirim laporan summary email: {str(e)}")
+
+    def _generate_backup_summary_html(self, zip_results=None, bak_results=None):
+        """Generate HTML content for backup summary email"""
+
+        # Generate executive summary first
+        executive_summary = self._generate_executive_summary(zip_results, bak_results)
+
+        # ZIP Analysis Summary
+        zip_summary = self._generate_zip_analysis_summary(zip_results)
+
+        # BAK Analysis Summary
+        bak_summary = self._generate_bak_analysis_summary(bak_results)
+
+        html_content = f"""
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                .header {{ background-color: #f0f0f0; padding: 20px; border-radius: 5px; }}
+                .executive-summary {{ background-color: #e8f5e8; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+                .summary-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0; }}
+                .summary-card {{ background-color: white; padding: 15px; border-radius: 5px; border: 1px solid #ddd; }}
+                .summary-card h4 {{ margin: 0 0 10px 0; color: #333; }}
+                .summary-card .value {{ font-size: 24px; font-weight: bold; color: #2196F3; }}
+                .summary-card .label {{ font-size: 12px; color: #666; }}
+                .section {{ margin: 20px 0; }}
+                .summary-table {{ border-collapse: collapse; width: 100%; }}
+                .summary-table th, .summary-table td {{
+                    border: 1px solid #ddd; padding: 8px; text-align: left;
+                }}
+                .summary-table th {{ background-color: #f2f2f2; }}
+                .status-valid {{ color: green; font-weight: bold; }}
+                .status-invalid {{ color: red; font-weight: bold; }}
+                .status-warning {{ color: orange; font-weight: bold; }}
+                .file-info {{ background-color: #f9f9f9; padding: 10px; border-radius: 3px; margin: 5px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2>LAPORAN SUMMARY ANALISIS BACKUP DATABASE</h2>
+                <p><strong>Tanggal Analisis:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            </div>
+
+            {executive_summary}
+
+            <div class="section">
+                <h3>📦 DETAIL ANALISIS ZIP FILE</h3>
+                {zip_summary}
+            </div>
+
+            <div class="section">
+                <h3>💾 DETAIL ANALISIS BAK FILE</h3>
+                {bak_summary}
+            </div>
+
+            <div class="section">
+                <h3>📊 REKOMENDASI</h3>
+                {self._generate_recommendations(zip_results, bak_results)}
+            </div>
+
+            <hr>
+            <p><em>Laporan ini dibuat otomatis oleh sistem monitoring backup database</em></p>
+        </body>
+        </html>
+        """
+
+        return html_content
+
+    def _generate_executive_summary(self, zip_results=None, bak_results=None):
+        """Generate executive summary with key metrics"""
+        if not zip_results:
+            return "<div class='executive-summary'><h3>📊 EXECUTIVE SUMMARY</h3><p>Tidak ada data analisis yang tersedia</p></div>"
+
+        # Calculate summary statistics
+        total_zip_files = len(zip_results)
+        total_zip_size = sum(result.get('file_size_mb', 0) for result in zip_results)
+        total_bak_files = sum(len(result.get('bak_analyses', [])) for result in zip_results)
+        valid_zips = sum(1 for result in zip_results if result.get('integrity_check', {}).get('is_valid', False))
+        valid_baks = sum(1 for result in zip_results for bak in result.get('bak_analyses', []) if 'error' not in bak.get('analysis', {}))
+
+        # Get file information with modified dates
+        file_info_html = ""
+        for i, result in enumerate(zip_results, 1):
+            zip_path = result.get('zip_file', 'Unknown')
+            file_size = result.get('file_size_mb', 0)
+            modified_date = self._get_file_modified_date(zip_path)
+            bak_count = len(result.get('bak_analyses', []))
+            integrity = result.get('integrity_check', {}).get('is_valid', False)
+
+            status_icon = "✅" if integrity else "❌"
+            file_info_html += f"""
+            <div class="file-info">
+                <strong>📁 File {i}:</strong> {os.path.basename(zip_path)}<br>
+                <strong>📅 Tanggal Modified:</strong> {modified_date}<br>
+                <strong>📏 Ukuran:</strong> {file_size:.2f} MB<br>
+                <strong>🗃️ Jumlah BAK:</strong> {bak_count}<br>
+                <strong>🔍 Status Integrity:</strong> {status_icon} {'Valid' if integrity else 'Invalid'}
+            </div>
+            """
+
+        html = f"""
+        <div class="executive-summary">
+            <h3>📊 EXECUTIVE SUMMARY</h3>
+
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <h4>Total File ZIP</h4>
+                    <div class="value">{total_zip_files}</div>
+                    <div class="label">File yang dianalisis</div>
+                </div>
+
+                <div class="summary-card">
+                    <h4>Total Ukuran ZIP</h4>
+                    <div class="value">{total_zip_size:.1f}</div>
+                    <div class="label">MB</div>
+                </div>
+
+                <div class="summary-card">
+                    <h4>Total File BAK</h4>
+                    <div class="value">{total_bak_files}</div>
+                    <div class="label">Database backup</div>
+                </div>
+
+                <div class="summary-card">
+                    <h4>ZIP Valid</h4>
+                    <div class="value">{valid_zips}/{total_zip_files}</div>
+                    <div class="label">File integrity OK</div>
+                </div>
+
+                <div class="summary-card">
+                    <h4>BAK Valid</h4>
+                    <div class="value">{valid_baks}/{total_bak_files if total_bak_files > 0 else 1}</div>
+                    <div class="label">Database valid</div>
+                </div>
+            </div>
+
+            <h4>📋 Informasi File yang Dianalisis:</h4>
+            {file_info_html}
+        </div>
+        """
+
+        return html
+
+    def _get_file_modified_date(self, file_path):
+        """Get file modified date"""
+        try:
+            if os.path.exists(file_path):
+                mod_time = os.path.getmtime(file_path)
+                return datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                return "File not found"
+        except Exception as e:
+            return f"Error: {str(e)}"
+
+    def _generate_zip_analysis_summary(self, zip_results=None):
+        """Generate ZIP analysis summary table"""
+        if not zip_results:
+            return "<p>Tidak ada data analisis ZIP</p>"
+
+        html = """
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin: 10px 0;">
+            <thead>
+                <tr style="background-color: #f2f2f2;">
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">No</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Nama File ZIP</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Ukuran (MB)</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Status Integrity</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Jumlah BAK</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Tanggal Modified</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+
+        for i, result in enumerate(zip_results, 1):
+            zip_name = os.path.basename(result.get('zip_file', 'Unknown'))
+            file_size = result.get('file_size_mb', 0)
+            integrity = result.get('integrity_check', {}).get('is_valid', False)
+            bak_count = len(result.get('bak_analyses', []))
+            modified_date = self._get_file_modified_date(result.get('zip_file', ''))
+
+            status_color = 'green' if integrity else 'red'
+            status_text = 'Valid' if integrity else 'Invalid'
+
+            html += f"""
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{i}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{zip_name}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{file_size:.2f}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px; color: {status_color}; font-weight: bold;">{status_text}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{bak_count}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{modified_date}</td>
+                </tr>
+            """
+
+        html += """
+            </tbody>
+        </table>
+        """
+
+        return html
+
+    def _generate_bak_analysis_summary(self, bak_results=None):
+        """Generate BAK analysis summary table"""
+        if not bak_results:
+            return "<p>Tidak ada data analisis BAK</p>"
+
+        html = """
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin: 10px 0;">
+            <thead>
+                <tr style="background-color: #f2f2f2;">
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">No</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Nama File BAK</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Tipe Database</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Nama Database</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Tanggal Backup</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Status</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Jumlah Record</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+
+        for i, result in enumerate(bak_results, 1):
+            bak_name = result.get('file_name', 'Unknown')
+            analysis = result.get('analysis', {})
+
+            db_type = analysis.get('backup_type', 'Unknown')
+            db_name = analysis.get('database_name', 'Unknown')
+            backup_date = analysis.get('backup_date', 'Unknown')
+            record_count = analysis.get('database_info', {}).get('record_count', 'N/A')
+
+            # Determine status and color
+            if 'error' in analysis:
+                status_color = 'red'
+                status_text = 'Error'
+            elif backup_date == 'Unknown':
+                status_color = 'orange'
+                status_text = 'Warning'
+            else:
+                status_color = 'green'
+                status_text = 'Valid'
+
+            html += f"""
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{i}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{bak_name}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{db_type}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{db_name}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{backup_date}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px; color: {status_color}; font-weight: bold;">{status_text}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{record_count}</td>
+                </tr>
+            """
+
+        html += """
+            </tbody>
+        </table>
+        """
+
+        return html
+
+    def _generate_recommendations(self, zip_results=None, bak_results=None):
+        """Generate recommendations based on analysis results"""
+        recommendations = []
+
+        # ZIP recommendations
+        if zip_results:
+            invalid_zips = [r for r in zip_results if not r.get('integrity_check', {}).get('is_valid', False)]
+            if invalid_zips:
+                recommendations.append(f"🔍 Terdapat {len(invalid_zips)} file ZIP dengan integrity yang tidak valid. Disarankan untuk memeriksa ulang file backup tersebut.")
+
+        # BAK recommendations
+        if bak_results:
+            problematic_baks = [r for r in bak_results if 'error' in r.get('analysis', {})]
+            if problematic_baks:
+                recommendations.append(f"⚠️ Terdapat {len(problematic_baks)} file BAK yang mengalami error saat analisis. Disarankan untuk memeriksa struktur file backup.")
+
+            old_backups = [r for r in bak_results if self._is_old_backup(r.get('analysis', {}).get('backup_date', ''))]
+            if old_backups:
+                recommendations.append(f"📅 Terdapat {len(old_backups)} file backup yang sudah cukup lama. Disarankan untuk membuat backup baru.")
+
+        if not recommendations:
+            recommendations.append("✅ Semua file backup dalam kondisi baik dan layak digunakan.")
+
+        html = "<ul>"
+        for rec in recommendations:
+            html += f"<li>{rec}</li>"
+        html += "</ul>"
+
+        return html
+
+    def _is_old_backup(self, backup_date_str):
+        """Check if backup is older than 30 days"""
+        try:
+            if backup_date_str == 'Unknown':
+                return False
+
+            # Parse various date formats
+            for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y']:
+                try:
+                    backup_date = datetime.strptime(backup_date_str, fmt)
+                    days_old = (datetime.now() - backup_date).days
+                    return days_old > 30
+                except ValueError:
+                    continue
+
+            return False
+        except:
+            return False
 
 def main():
     """Main function"""
