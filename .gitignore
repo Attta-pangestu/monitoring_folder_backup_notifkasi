@@ -1,0 +1,28 @@
+# File besar dan file sementara
+*.bak
+*.zip
+*.db
+*.log
+__pycache__/
+*.pyc
+*.pyo
+.Python
+env/
+venv/
+ENV/
+.venv/
+.ENV/
+.egg-info/
+dist/
+build/
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.csv
+*.json  # Mengecualikan file JSON jika terlalu besar (tapi bisa ditambahkan kembali jika perlu)
+temp_extract/
+date_extraction_output/
+real_test_backups/
