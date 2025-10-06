@@ -4614,7 +4614,8 @@ Backup Monitor System
             else:
                 self.append_terminal_output("🔍 DEBUG: Tidak ada data ZIP yang ditemukan")
 
-            if not unique_zip_results:
+            # If no ZIP entries but we have BAK results (from BAK-only analysis), allow sending
+            if not unique_zip_results and not bak_results:
                 self.append_terminal_output("⚠️ Tidak ada data analisis yang tersedia untuk dikirim")
                 QMessageBox.warning(self, "Warning", "Tidak ada data analisis yang tersedia untuk dikirim via email.\n\nPastikan Anda telah melakukan analisis ZIP/BAK terlebih dahulu.")
                 self.hide_progress()
@@ -4646,11 +4647,39 @@ Backup Monitor System
                 }
             elif result.get('type') == 'bak_files':
                 # For BAK-only analysis, create a ZIP-like entry
+                normalized_baks = []
+                for b in result.get('bak_analyses', []):
+                    # Normalize common fields to avoid Unknown in email
+                    bak_name = b.get('file_name') or b.get('filename') or os.path.basename(b.get('file_path', '') or '')
+                    analysis = b.get('analysis') or {}
+                    db_info = b.get('database_info') or analysis.get('database_info') or {}
+                    backup_header = b.get('backup_header', {})
+                    backup_date_val = (
+                        analysis.get('backup_date')
+                        or db_info.get('backup_date')
+                        or backup_header.get('backup_finish_date')
+                        or 'Unknown'
+                    )
+
+                    normalized_baks.append({
+                        'file_name': bak_name or 'Unknown',
+                        'file_size_mb': b.get('file_size_mb') or ((b.get('file_size') or 0) / (1024*1024)),
+                        'analysis_status': b.get('analysis_status', 'success' if not b.get('error') else 'failed'),
+                        'error': b.get('error'),
+                        'analysis': {
+                            'backup_type': analysis.get('backup_type') or db_info.get('backup_type') or 'Unknown',
+                            'database_name': analysis.get('database_name') or db_info.get('database_name') or 'Unknown',
+                            'backup_date': backup_date_val,
+                            'database_info': db_info
+                        },
+                        'validation': b.get('validation', {})
+                    })
+
                 return {
                     'zip_file': result.get('backup_directory', ''),
                     'file_size_mb': 0,  # Not applicable for BAK-only
                     'integrity_check': {'is_valid': True},  # Assume valid if we got here
-                    'bak_analyses': result.get('bak_analyses', []),
+                    'bak_analyses': normalized_baks,
                     'metadata': {
                         'creation_date': result.get('analysis_time', ''),
                         'analysis_time': result.get('analysis_time', '')
@@ -4663,11 +4692,39 @@ Backup Monitor System
     def _convert_manual_result_to_email_format(self, result):
         """Convert manual extraction result to email format"""
         try:
+            # Normalize BAK analyses to avoid Unknown fields in email
+            normalized_baks = []
+            for b in result.get('bak_analyses', []):
+                bak_name = b.get('file_name') or b.get('filename') or os.path.basename(b.get('file_path', '') or '')
+                analysis = b.get('analysis') or {}
+                db_info = b.get('database_info') or analysis.get('database_info') or {}
+                backup_header = b.get('backup_header', {})
+                backup_date_val = (
+                    analysis.get('backup_date')
+                    or db_info.get('backup_date')
+                    or backup_header.get('backup_finish_date')
+                    or 'Unknown'
+                )
+
+                normalized_baks.append({
+                    'file_name': bak_name or 'Unknown',
+                    'file_size_mb': b.get('file_size_mb') or ((b.get('file_size') or 0) / (1024*1024)),
+                    'analysis_status': b.get('analysis_status', 'success' if not b.get('error') else 'failed'),
+                    'error': b.get('error'),
+                    'analysis': {
+                        'backup_type': analysis.get('backup_type') or db_info.get('backup_type') or 'Unknown',
+                        'database_name': analysis.get('database_name') or db_info.get('database_name') or 'Unknown',
+                        'backup_date': backup_date_val,
+                        'database_info': db_info
+                    },
+                    'validation': b.get('validation', {})
+                })
+
             return {
                 'zip_file': result.get('zip_file', ''),
                 'file_size_mb': result.get('file_size_mb', 0),
                 'integrity_check': result.get('integrity_check', {}),
-                'bak_analyses': result.get('bak_analyses', []),
+                'bak_analyses': normalized_baks,
                 'metadata': result.get('metadata', {})
             }
         except Exception as e:
@@ -4677,11 +4734,39 @@ Backup Monitor System
     def _convert_current_file_to_email_format(self, file_info):
         """Convert current file info to email format"""
         try:
+            # Normalize BAK analyses to avoid Unknown fields in email
+            normalized_baks = []
+            for b in file_info.get('bak_analyses', []):
+                bak_name = b.get('file_name') or b.get('filename') or os.path.basename(b.get('file_path', '') or '')
+                analysis = b.get('analysis') or {}
+                db_info = b.get('database_info') or analysis.get('database_info') or {}
+                backup_header = b.get('backup_header', {})
+                backup_date_val = (
+                    analysis.get('backup_date')
+                    or db_info.get('backup_date')
+                    or backup_header.get('backup_finish_date')
+                    or 'Unknown'
+                )
+
+                normalized_baks.append({
+                    'file_name': bak_name or 'Unknown',
+                    'file_size_mb': b.get('file_size_mb') or ((b.get('file_size') or 0) / (1024*1024)),
+                    'analysis_status': b.get('analysis_status', 'success' if not b.get('error') else 'failed'),
+                    'error': b.get('error'),
+                    'analysis': {
+                        'backup_type': analysis.get('backup_type') or db_info.get('backup_type') or 'Unknown',
+                        'database_name': analysis.get('database_name') or db_info.get('database_name') or 'Unknown',
+                        'backup_date': backup_date_val,
+                        'database_info': db_info
+                    },
+                    'validation': b.get('validation', {})
+                })
+
             return {
                 'zip_file': file_info.get('filename', ''),
                 'file_size_mb': file_info.get('file_size_mb', 0),
                 'integrity_check': file_info.get('integrity_check', {}),
-                'bak_analyses': file_info.get('bak_analyses', []),
+                'bak_analyses': normalized_baks,
                 'metadata': file_info.get('metadata', {})
             }
         except Exception as e:
@@ -4708,7 +4793,32 @@ Backup Monitor System
                 })
 
         elif 'bak_analyses' in result:
-            bak_analyses.extend(result['bak_analyses'])
+            # Normalize when pulling directly from comprehensive result
+            for b in result['bak_analyses']:
+                bak_name = b.get('file_name') or b.get('filename') or os.path.basename(b.get('file_path', '') or '')
+                analysis = b.get('analysis') or {}
+                db_info = b.get('database_info') or analysis.get('database_info') or {}
+                backup_header = b.get('backup_header', {})
+                backup_date_val = (
+                    analysis.get('backup_date')
+                    or db_info.get('backup_date')
+                    or backup_header.get('backup_finish_date')
+                    or 'Unknown'
+                )
+
+                bak_analyses.append({
+                    'file_name': bak_name or 'Unknown',
+                    'file_size_mb': b.get('file_size_mb') or ((b.get('file_size') or 0) / (1024*1024)),
+                    'analysis_status': b.get('analysis_status', 'success' if not b.get('error') else 'failed'),
+                    'error': b.get('error'),
+                    'analysis': {
+                        'backup_type': analysis.get('backup_type') or db_info.get('backup_type') or 'Unknown',
+                        'database_name': analysis.get('database_name') or db_info.get('database_name') or 'Unknown',
+                        'backup_date': backup_date_val,
+                        'database_info': db_info
+                    },
+                    'validation': b.get('validation', {})
+                })
 
         return bak_analyses
 
@@ -4818,69 +4928,114 @@ Backup Monitor System
 
     def _generate_executive_summary(self, zip_results=None, bak_results=None):
         """Generate executive summary with key metrics"""
+        # Support BAK-only analysis by synthesizing minimal ZIP context
         if not zip_results:
-            return "<div class='executive-summary'><h3>📊 EXECUTIVE SUMMARY</h3><p>Tidak ada data analisis yang tersedia</p></div>"
+            if bak_results:
+                zip_results = [{
+                    'zip_file': 'BAK-only analysis',
+                    'file_size_mb': 0,
+                    'integrity_check': {'is_valid': True},
+                    'bak_analyses': bak_results,
+                    'metadata': {}
+                }]
+            else:
+                return "<div class='executive-summary'><h3>📊 EXECUTIVE SUMMARY</h3><p>Tidak ada data analisis yang tersedia</p></div>"
 
-        # Calculate summary statistics
-        total_zip_files = len(zip_results)
-        total_zip_size = sum(result.get('file_size_mb', 0) for result in zip_results)
-        total_bak_files = sum(len(result.get('bak_analyses', [])) for result in zip_results)
-        valid_zips = sum(1 for result in zip_results if result.get('integrity_check', {}).get('is_valid', False))
-        valid_baks = sum(1 for result in zip_results for bak in result.get('bak_analyses', []) if 'error' not in bak.get('analysis', {}))
+        zip_entries = [r for r in zip_results if str(r.get('zip_file', '')).lower().endswith('.zip')]
+        total_zip_files = len(zip_entries)
+        total_zip_size = sum(r.get('file_size_mb', 0) for r in zip_entries)
 
-        # Get file information with modified dates
+        all_baks = []
+        for r in zip_results:
+            all_baks.extend(r.get('bak_analyses', []))
+        total_bak_files = len(all_baks)
+
+        def _bak_size_mb(b):
+            if 'file_size_mb' in b:
+                return b.get('file_size_mb', 0) or 0
+            if 'file_size' in b:
+                try:
+                    return (b.get('file_size', 0) or 0) / (1024 * 1024)
+                except Exception:
+                    return 0
+            return 0
+
+        total_bak_size = sum(_bak_size_mb(b) for b in all_baks)
+
+        valid_zips = sum(1 for r in zip_entries if r.get('integrity_check', {}).get('is_valid', False))
+
+        def _is_bak_valid(b):
+            if b.get('analysis_status') == 'success':
+                v = b.get('validation', {})
+                if 'is_valid_bak' in v:
+                    return bool(v.get('is_valid_bak'))
+                return True
+            analysis = b.get('analysis', {})
+            if analysis.get('error'):
+                return False
+            return analysis.get('backup_date', 'Unknown') != 'Unknown'
+
+        valid_baks = sum(1 for b in all_baks if _is_bak_valid(b))
+
         file_info_html = ""
-        for i, result in enumerate(zip_results, 1):
+        for i, result in enumerate(zip_entries, 1):
             zip_path = result.get('zip_file', 'Unknown')
             file_size = result.get('file_size_mb', 0)
             modified_date = self._get_file_modified_date(zip_path)
             bak_count = len(result.get('bak_analyses', []))
             integrity = result.get('integrity_check', {}).get('is_valid', False)
-
             status_icon = "✅" if integrity else "❌"
+            extract_text = "Bisa" if integrity else "Tidak"
             file_info_html += f"""
-            <div class="file-info">
+            <div class=\"file-info\">
                 <strong>📁 File {i}:</strong> {os.path.basename(zip_path)}<br>
                 <strong>📅 Tanggal Modified:</strong> {modified_date}<br>
                 <strong>📏 Ukuran:</strong> {file_size:.2f} MB<br>
                 <strong>🗃️ Jumlah BAK:</strong> {bak_count}<br>
-                <strong>🔍 Status Integrity:</strong> {status_icon} {'Valid' if integrity else 'Invalid'}
+                <strong>🔍 Status Integrity:</strong> {status_icon} {'Valid' if integrity else 'Invalid'}<br>
+                <strong>🔓 Ekstraksi:</strong> {extract_text}
             </div>
             """
 
         html = f"""
-        <div class="executive-summary">
+        <div class=\"executive-summary\">
             <h3>📊 EXECUTIVE SUMMARY</h3>
 
-            <div class="summary-grid">
-                <div class="summary-card">
+            <div class=\"summary-grid\">
+                <div class=\"summary-card\">
                     <h4>Total File ZIP</h4>
-                    <div class="value">{total_zip_files}</div>
-                    <div class="label">File yang dianalisis</div>
+                    <div class=\"value\">{total_zip_files}</div>
+                    <div class=\"label\">File yang dianalisis</div>
                 </div>
 
-                <div class="summary-card">
+                <div class=\"summary-card\">
                     <h4>Total Ukuran ZIP</h4>
-                    <div class="value">{total_zip_size:.1f}</div>
-                    <div class="label">MB</div>
+                    <div class=\"value\">{total_zip_size:.1f}</div>
+                    <div class=\"label\">MB</div>
                 </div>
 
-                <div class="summary-card">
+                <div class=\"summary-card\">
                     <h4>Total File BAK</h4>
-                    <div class="value">{total_bak_files}</div>
-                    <div class="label">Database backup</div>
+                    <div class=\"value\">{total_bak_files}</div>
+                    <div class=\"label\">Database backup</div>
                 </div>
 
-                <div class="summary-card">
+                <div class=\"summary-card\">
+                    <h4>Total Ukuran BAK</h4>
+                    <div class=\"value\">{total_bak_size:.1f}</div>
+                    <div class=\"label\">MB</div>
+                </div>
+
+                <div class=\"summary-card\">
                     <h4>ZIP Valid</h4>
-                    <div class="value">{valid_zips}/{total_zip_files}</div>
-                    <div class="label">File integrity OK</div>
+                    <div class=\"value\">{valid_zips}/{total_zip_files if total_zip_files > 0 else 1}</div>
+                    <div class=\"label\">File integrity OK</div>
                 </div>
 
-                <div class="summary-card">
+                <div class=\"summary-card\">
                     <h4>BAK Valid</h4>
-                    <div class="value">{valid_baks}/{total_bak_files if total_bak_files > 0 else 1}</div>
-                    <div class="label">Database valid</div>
+                    <div class=\"value\">{valid_baks}/{total_bak_files if total_bak_files > 0 else 1}</div>
+                    <div class=\"label\">Database valid</div>
                 </div>
             </div>
 
@@ -4907,6 +5062,10 @@ Backup Monitor System
         if not zip_results:
             return "<p>Tidak ada data analisis ZIP</p>"
 
+        zip_entries = [r for r in zip_results if str(r.get('zip_file', '')).lower().endswith('.zip')]
+        if not zip_entries:
+            return "<p>Tidak ada file ZIP yang valid untuk ditampilkan</p>"
+
         html = """
         <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin: 10px 0;">
             <thead>
@@ -4922,7 +5081,7 @@ Backup Monitor System
             <tbody>
         """
 
-        for i, result in enumerate(zip_results, 1):
+        for i, result in enumerate(zip_entries, 1):
             zip_name = os.path.basename(result.get('zip_file', 'Unknown'))
             file_size = result.get('file_size_mb', 0)
             integrity = result.get('integrity_check', {}).get('is_valid', False)
@@ -4972,16 +5131,26 @@ Backup Monitor System
         """
 
         for i, result in enumerate(bak_results, 1):
-            bak_name = result.get('file_name', 'Unknown')
-            analysis = result.get('analysis', {})
+            bak_name = result.get('file_name') or result.get('filename') or 'Unknown'
+            analysis = result.get('analysis') or {}
+            if not analysis:
+                db_info = result.get('database_info', {})
+                backup_date_val = db_info.get('backup_date') or result.get('backup_header', {}).get('backup_finish_date') or 'Unknown'
+                analysis = {
+                    'backup_type': db_info.get('backup_type', 'Unknown'),
+                    'database_name': db_info.get('database_name', 'Unknown'),
+                    'backup_date': backup_date_val,
+                    'database_info': db_info
+                }
 
             db_type = analysis.get('backup_type', 'Unknown')
             db_name = analysis.get('database_name', 'Unknown')
             backup_date = analysis.get('backup_date', 'Unknown')
-            record_count = analysis.get('database_info', {}).get('record_count', 'N/A')
+            record_count = analysis.get('database_info', {}).get('record_count')
+            if record_count is None:
+                record_count = analysis.get('database_info', {}).get('estimated_rows', 'N/A')
 
-            # Determine status and color
-            if 'error' in analysis:
+            if result.get('error') or result.get('analysis_status') == 'failed':
                 status_color = 'red'
                 status_text = 'Error'
             elif backup_date == 'Unknown':
