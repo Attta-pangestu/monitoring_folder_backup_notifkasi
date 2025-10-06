@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__obsidian-mcp-tools__create_vault_file",
+      "mcp__obsidian-mcp-tools__search_vault_smart",
+      "Bash(python:*)",
+      "mcp__obsidian-mcp-tools__get_vault_file",
+      "Bash(sqlcmd:*)",
+      "Bash(dir:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

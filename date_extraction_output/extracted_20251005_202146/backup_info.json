@@ -1,0 +1,58 @@
+{
+  "backup_timestamp": "20251005_202142",
+  "original_file": "date_extraction_output\\date_extraction_20251005_202138.json",
+  "table_configs": {
+    "staging_PTRJ_iFES_Plantware": {
+      "Gwscannerdata": {
+        "date_columns": [
+          "TRANSDATE",
+          "DATECREATED",
+          "INTEGRATETIME",
+          "SCANOUTDATETIME"
+        ],
+        "primary_date": "TRANSDATE",
+        "description": "Worker movement scanner data"
+      },
+      "Ffbscannerdata": {
+        "date_columns": [
+          "TRANSDATE",
+          "DATECREATED",
+          "INTEGRATETIME"
+        ],
+        "primary_date": "TRANSDATE",
+        "description": "FFB quality scanner data"
+      }
+    },
+    "db_ptrj": {
+      "PR_Taskreg": {
+        "date_columns": [
+          "DocDate",
+          "CreatedDate",
+          "UpdatedDate"
+        ],
+        "primary_date": "DocDate",
+        "description": "Payroll task registration"
+      },
+      "IN_FUELISSUE": {
+        "date_columns": [
+          "CreateDate",
+          "UpdateDate",
+          "PrintDate",
+          "PostDate",
+          "FuelIssueRefDate"
+        ],
+        "primary_date": "CreateDate",
+        "description": "Fuel issue management"
+      }
+    },
+    "VenusHR14": {
+      "HR_T_TAMachine": {
+        "date_columns": [
+          "TADate"
+        ],
+        "primary_date": "TADate",
+        "description": "Time attendance machine data"
+      }
+    }
+  }
+}
