@@ -1,181 +1,8 @@
 {
-  "D:/Gawean Rebinmas/App_Auto_Backup/Backup\\BackupStaging 2025-10-04 09;16;30.zip": {
-    "path": "D:/Gawean Rebinmas/App_Auto_Backup/Backup\\BackupStaging 2025-10-04 09;16;30.zip",
-    "size": 279438828,
-    "modified": "2025-10-04T09:18:44.648100",
-    "status": "Valid",
-    "extracted": true,
-    "bak_files": [
-      {
-        "filename": "BackupStaging.bak",
-        "size": 2398658048,
-        "extension": ".bak",
-        "is_bak": true,
-        "backup_type": "BackupStaging",
-        "can_extract": true
-      }
-    ],
-    "compression_ratio": 88.35020847456786,
-    "extractable": true,
-    "corrupt": false,
-    "backup_type": "BackupStaging",
-    "deep_analysis": {
-      "extracted_files": [
-        {
-          "filename": "BackupStaging.bak",
-          "path": "D:/Gawean Rebinmas/App_Auto_Backup/Backup\\BackupStaging.bak",
-          "size": 2398658048,
-          "extension": ".bak",
-          "backup_type": "BackupStaging",
-          "exists": true,
-          "readable": true,
-          "dbatools_analysis": {
-            "status": "Analyzed",
-            "file_size": 2398658048,
-            "file_size_formatted": "2.2 GB",
-            "readable": true,
-            "backup_type": "BackupStaging",
-            "analysis_timestamp": "2025-10-07T11:58:11.602804",
-            "dbatools_version": "Simulated v1.0",
-            "warnings": [],
-            "errors": [],
-            "header_analysis": "Valid backup header detected"
-          },
-          "sql_analysis": {
-            "status": "SQL Analysis Complete",
-            "backup_type": "BackupStaging",
-            "database_name": "",
-            "backup_date": "2025-10-07 11:58:12",
-            "backup_size": 0,
-            "position": 0,
-            "warnings": []
-          },
-          "validation_checklist": {
-            "file_ada_dan_dapat_diakses": {
-              "status": true,
-              "keterangan": "File BAK ada dan dapat diakses",
-              "hasil": "[VALID]"
-            },
-            "ukuran_file_wajar": {
-              "status": true,
-              "keterangan": "Ukuran file BAK wajar (>10KB)",
-              "hasil": "[VALID]"
-            },
-            "dbatools_dapat_membaca": {
-              "status": true,
-              "keterangan": "DBATools dapat membaca .bak file",
-              "hasil": "[VALID]"
-            },
-            "sql_server_dapat_membaca": {
-              "status": true,
-              "keterangan": "SQL Server dapat membaca .bak file",
-              "hasil": "[VALID]"
-            },
-            "bisa_diekstrak_dari_zip": {
-              "status": true,
-              "keterangan": "File dapat diekstrak dari ZIP",
-              "hasil": "[VALID]"
-            },
-            "tanggal_backup_masuk_akal": {
-              "status": true,
-              "keterangan": "Tanggal backup masuk akal",
-              "hasil": "[VALID]"
-            },
-            "ukuran_minimum_backup": {
-              "status": false,
-              "keterangan": "Ukuran minimum BackupStaging",
-              "hasil": "[GAGAL]"
-            },
-            "format_backup_valid": {
-              "status": true,
-              "keterangan": "Format backup database valid",
-              "hasil": "[VALID]"
-            },
-            "tidak_corrupt": {
-              "status": true,
-              "keterangan": "File BAK tidak corrupt",
-              "hasil": "[VALID]"
-            },
-            "backup_tidak_outdated": {
-              "status": false,
-              "keterangan": "Backup tidak outdated (< 7 hari)",
-              "hasil": "[GAGAL - OUTDATED]"
-            },
-            "file_date_recent": {
-              "status": false,
-              "keterangan": "File date dalam 24 jam terakhir",
-              "hasil": "[INFO]"
-            },
-            "size_minimum_terpenuhi": {
-              "status": false,
-              "keterangan": "Size minimum terpenuhi",
-              "hasil": "[WARNING - SIZE]"
-            }
-          },
-          "is_outdated": true,
-          "days_since_backup": 3,
-          "file_date_one_day_different": false,
-          "zip_modification_date": "2025-10-04T09:18:44.648100",
-          "backup_date": "2025-10-04 09:18:44",
-          "size_warning": true
-        }
-      ],
-      "extraction_successful": true,
-      "dbatools_status": "All Files Readable",
-      "can_be_extracted": true
-    },
-    "file_count": 1,
-    "uncompressed_size": 2398658048,
-    "compressed_size": 279438662,
-    "database_info": {},
-    "zip_checklist": {
-      "integritas_struktur": {
-        "status": true,
-        "keterangan": "Struktur file ZIP valid",
-        "hasil": "[VALID]"
-      },
-      "kemampuan_ekstrak": {
-        "status": true,
-        "keterangan": "File dapat diekstrak",
-        "hasil": "[VALID]"
-      },
-      "file_date_one_day_different": {
-        "status": false,
-        "keterangan": "File date berbeda satu hari",
-        "hasil": "[GAGAL]"
-      },
-      "contains_bak_files": {
-        "status": true,
-        "keterangan": "Mengandung file BAK",
-        "hasil": "[VALID]"
-      },
-      "ukuran_file_wajar": {
-        "status": false,
-        "keterangan": "Ukuran file wajar (>1MB)",
-        "hasil": "[GAGAL]"
-      },
-      "tanggal_modifikasi_valid": {
-        "status": true,
-        "keterangan": "Tanggal modifikasi valid (≤365 hari)",
-        "hasil": "[VALID]"
-      }
-    },
-    "deep_parameters": {
-      "file_date_one_day_different": false,
-      "days_difference": 3,
-      "can_be_extracted": true,
-      "dbatools_status": "Unknown",
-      "contains_bak_files": true,
-      "bak_file_count": 1,
-      "all_files_count": 1
-    },
-    "is_outdated": true,
-    "days_difference": 3
-  },
-  "D:/Gawean Rebinmas/App_Auto_Backup/Backup\\BackupVenuz 2025-10-04 10;17;35.zip": {
-    "path": "D:/Gawean Rebinmas/App_Auto_Backup/Backup\\BackupVenuz 2025-10-04 10;17;35.zip",
-    "size": 139243531,
-    "modified": "2025-10-04T10:20:14.047731",
+  "D:/Gawean Rebinmas/App_Auto_Backup/Backup\\BackupVenuz 2025-10-07 10;17;34.zip": {
+    "path": "D:/Gawean Rebinmas/App_Auto_Backup/Backup\\BackupVenuz 2025-10-07 10;17;34.zip",
+    "size": 139258844,
+    "modified": "2025-10-07T10:19:59.860795",
     "status": "Valid",
     "extracted": true,
     "bak_files": [
@@ -188,7 +15,7 @@
         "can_extract": true
       }
     ],
-    "compression_ratio": 98.44435943415581,
+    "compression_ratio": 98.44418835580423,
     "extractable": true,
     "corrupt": false,
     "backup_type": "BackupVenus",
@@ -208,7 +35,7 @@
             "file_size_formatted": "8.3 GB",
             "readable": true,
             "backup_type": "BackupVenus",
-            "analysis_timestamp": "2025-10-07T11:58:35.574386",
+            "analysis_timestamp": "2025-10-07T14:31:21.111095",
             "dbatools_version": "Simulated v1.0",
             "warnings": [],
             "errors": [],
@@ -218,7 +45,7 @@
             "status": "SQL Analysis Complete",
             "backup_type": "BackupVenus",
             "database_name": "",
-            "backup_date": "2025-10-07 11:58:36",
+            "backup_date": "2025-10-07 14:31:21",
             "backup_size": 0,
             "position": 0,
             "warnings": []
@@ -270,14 +97,14 @@
               "hasil": "[VALID]"
             },
             "backup_tidak_outdated": {
-              "status": false,
+              "status": true,
               "keterangan": "Backup tidak outdated (< 7 hari)",
-              "hasil": "[GAGAL - OUTDATED]"
+              "hasil": "[VALID]"
             },
             "file_date_recent": {
-              "status": false,
+              "status": true,
               "keterangan": "File date dalam 24 jam terakhir",
-              "hasil": "[INFO]"
+              "hasil": "[VALID]"
             },
             "size_minimum_terpenuhi": {
               "status": false,
@@ -285,11 +112,11 @@
               "hasil": "[WARNING - SIZE]"
             }
           },
-          "is_outdated": true,
-          "days_since_backup": 3,
-          "file_date_one_day_different": false,
-          "zip_modification_date": "2025-10-04T10:20:14.047731",
-          "backup_date": "2025-10-04 10:20:14",
+          "is_outdated": false,
+          "days_since_backup": 0,
+          "file_date_one_day_different": true,
+          "zip_modification_date": "2025-10-07T10:19:59.860795",
+          "backup_date": "2025-10-07 10:19:59",
           "size_warning": true
         }
       ],
@@ -299,7 +126,7 @@
     },
     "file_count": 1,
     "uncompressed_size": 8950869504,
-    "compressed_size": 139243357,
+    "compressed_size": 139258670,
     "database_info": {},
     "zip_checklist": {
       "integritas_struktur": {
@@ -335,14 +162,14 @@
     },
     "deep_parameters": {
       "file_date_one_day_different": false,
-      "days_difference": 3,
+      "days_difference": 0,
       "can_be_extracted": true,
       "dbatools_status": "Unknown",
       "contains_bak_files": true,
       "bak_file_count": 1,
       "all_files_count": 1
     },
-    "is_outdated": true,
-    "days_difference": 3
+    "is_outdated": false,
+    "days_difference": 0
   }
 }

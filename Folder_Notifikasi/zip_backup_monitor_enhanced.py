@@ -26,6 +26,7 @@ from pathlib import Path
 import configparser
 from typing import Dict, List, Tuple, Optional
 import re
+import shutil
 
 class ZipBackupMonitorEnhanced:
     def __init__(self, root):
@@ -38,6 +39,18 @@ class ZipBackupMonitorEnhanced:
         self.is_monitoring = False
         self.summary_data = {}
         self.config_file = "config.ini"
+        
+        # Add variable for immediate report on startup
+        self.send_immediate_report = tk.BooleanVar(value=False)
+
+        # Scheduler settings
+        self.scheduler_enabled = tk.BooleanVar(value=False)
+        self.scheduler_time = tk.StringVar(value="08:00")  # Default 8 AM
+        self.scheduler_thread = None
+        self.scheduler_running = False
+
+        # Define valid backup filename prefixes
+        self.valid_backup_prefixes = ['backupstaging', 'backupvenuz', 'plantwarep3']
 
         # Setup logging
         self.setup_logging()
@@ -96,6 +109,16 @@ class ZipBackupMonitorEnhanced:
             'enable_sql_analysis': 'true'
         }
 
+        self.config['SCHEDULER'] = {
+            'enabled': 'false',
+            'execution_time': '08:00'
+        }
+
+        self.config['BACKUP_STATUS'] = {
+            'max_age_days': '7',
+            'outdated_threshold': '7'
+        }
+
         # Load dari file jika ada
         if os.path.exists(self.config_file):
             self.config.read(self.config_file)
@@ -121,18 +144,41 @@ class ZipBackupMonitorEnhanced:
         control_frame = ttk.LabelFrame(main_frame, text="Kontrol Monitoring", padding="10")
         control_frame.grid(row=1, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=5)
 
+        # Add checkbox for immediate report
+        self.immediate_report_checkbox = ttk.Checkbutton(control_frame, text="Kirim laporan segera saat mulai monitor", variable=self.send_immediate_report)
+        self.immediate_report_checkbox.grid(row=0, column=0, padx=5, sticky=(tk.W))
+
         self.start_button = ttk.Button(control_frame, text="Mulai Monitor", command=self.start_monitoring)
-        self.start_button.grid(row=0, column=0, padx=5)
+        self.start_button.grid(row=0, column=1, padx=5)
 
         self.stop_button = ttk.Button(control_frame, text="Stop Monitor", command=self.stop_monitoring, state=tk.DISABLED)
-        self.stop_button.grid(row=0, column=1, padx=5)
+        self.stop_button.grid(row=0, column=2, padx=5)
 
-        ttk.Button(control_frame, text="Test Email", command=self.send_test_email).grid(row=0, column=2, padx=5)
-        ttk.Button(control_frame, text="Kirim Deep Analysis", command=self.send_deep_analysis_email).grid(row=0, column=3, padx=5)
+        ttk.Button(control_frame, text="Test Email", command=self.send_test_email).grid(row=0, column=3, padx=5)
+        ttk.Button(control_frame, text="Kirim Deep Analysis", command=self.send_deep_analysis_email).grid(row=0, column=4, padx=5)
+        ttk.Button(control_frame, text="Rename Files", command=self.manual_rename_files).grid(row=0, column=5, padx=5)
+        ttk.Button(control_frame, text="Test Status", command=self.test_status_classification).grid(row=0, column=6, padx=5)
+
+        # Scheduler controls
+        scheduler_frame = ttk.LabelFrame(main_frame, text="Scheduler Harian", padding="10")
+        scheduler_frame.grid(row=2, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=5)
+
+        self.scheduler_checkbox = ttk.Checkbutton(scheduler_frame, text="Aktifkan Scheduler Harian", variable=self.scheduler_enabled, command=self.toggle_scheduler)
+        self.scheduler_checkbox.grid(row=0, column=0, padx=5, sticky=(tk.W))
+
+        ttk.Label(scheduler_frame, text="Waktu Eksekusi:").grid(row=0, column=1, padx=5)
+        self.scheduler_time_entry = ttk.Entry(scheduler_frame, textvariable=self.scheduler_time, width=10)
+        self.scheduler_time_entry.grid(row=0, column=2, padx=5)
+        self.scheduler_time_entry.bind('<FocusOut>', lambda e: self.save_scheduler_settings())
+
+        ttk.Label(scheduler_frame, text="(format: HH:MM)").grid(row=0, column=3, padx=5)
+
+        self.scheduler_status_label = ttk.Label(scheduler_frame, text="Scheduler: Non-aktif", foreground="gray")
+        self.scheduler_status_label.grid(row=0, column=4, padx=5)
 
         # Status
         status_frame = ttk.LabelFrame(main_frame, text="Status", padding="10")
-        status_frame.grid(row=2, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=5)
+        status_frame.grid(row=3, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=5)
 
         self.status_label = ttk.Label(status_frame, text="Siap untuk Deep Analysis")
         self.status_label.grid(row=0, column=0, sticky=tk.W)
@@ -180,6 +226,12 @@ class ZipBackupMonitorEnhanced:
         self.bak_summary_text = scrolledtext.ScrolledText(bak_summary_frame, height=15, width=100)
         self.bak_summary_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
+        # Monitored Files tab
+        monitored_frame = ttk.Frame(self.notebook)
+        self.notebook.add(monitored_frame, text="File Monitoring")
+        self.monitored_text = scrolledtext.ScrolledText(monitored_frame, height=15, width=100)
+        self.monitored_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
         # Log tab
         log_frame = ttk.Frame(self.notebook)
         self.notebook.add(log_frame, text="Log")
@@ -196,6 +248,259 @@ class ZipBackupMonitorEnhanced:
         if os.path.exists(default_path):
             self.monitoring_path.set(default_path)
             self.logger.info(f"Folder monitor dipilih: {default_path}")
+
+        # Load scheduler settings from config
+        self.load_scheduler_settings()
+
+    def load_scheduler_settings(self):
+        """Load scheduler settings from config file"""
+        try:
+            scheduler_enabled = self.config.getboolean('SCHEDULER', 'enabled', fallback=False)
+            scheduler_time = self.config.get('SCHEDULER', 'execution_time', fallback='08:00')
+
+            self.scheduler_enabled.set(scheduler_enabled)
+            self.scheduler_time.set(scheduler_time)
+
+            self.logger.info(f"Scheduler settings loaded - Enabled: {scheduler_enabled}, Time: {scheduler_time}")
+
+            # Auto-start scheduler if enabled
+            if scheduler_enabled:
+                self.toggle_scheduler()
+        except Exception as e:
+            self.logger.error(f"Error loading scheduler settings: {str(e)}")
+
+    def save_scheduler_settings(self):
+        """Save scheduler settings to config file"""
+        try:
+            self.config.set('SCHEDULER', 'enabled', str(self.scheduler_enabled.get()).lower())
+            self.config.set('SCHEDULER', 'execution_time', self.scheduler_time.get())
+
+            # Save to file
+            with open(self.config_file, 'w') as configfile:
+                self.config.write(configfile)
+
+            self.logger.info(f"Scheduler settings saved - Enabled: {self.scheduler_enabled.get()}, Time: {self.scheduler_time.get()}")
+        except Exception as e:
+            self.logger.error(f"Error saving scheduler settings: {str(e)}")
+
+    def toggle_scheduler(self):
+        """Toggle scheduler on/off"""
+        if self.scheduler_enabled.get():
+            self.start_scheduler()
+        else:
+            self.stop_scheduler()
+
+    def start_scheduler(self):
+        """Start the daily scheduler"""
+        try:
+            self.scheduler_running = True
+            self.scheduler_thread = threading.Thread(target=self.scheduler_loop, daemon=True)
+            self.scheduler_thread.start()
+
+            self.scheduler_status_label.config(text="Scheduler: Aktif", foreground="green")
+            self.update_log("Scheduler harian diaktifkan")
+            self.save_scheduler_settings()
+
+            # Validate time format
+            if not self.validate_time_format(self.scheduler_time.get()):
+                messagebox.showwarning("Format Waktu", "Format waktu tidak valid. Menggunakan default 08:00")
+                self.scheduler_time.set("08:00")
+                self.save_scheduler_settings()
+
+        except Exception as e:
+            self.logger.error(f"Error starting scheduler: {str(e)}")
+            self.scheduler_enabled.set(False)
+            self.scheduler_status_label.config(text="Scheduler: Error", foreground="red")
+
+    def stop_scheduler(self):
+        """Stop the daily scheduler"""
+        self.scheduler_running = False
+        self.scheduler_status_label.config(text="Scheduler: Non-aktif", foreground="gray")
+        self.update_log("Scheduler harian dinonaktifkan")
+        self.save_scheduler_settings()
+
+    def validate_time_format(self, time_str):
+        """Validate time format (HH:MM)"""
+        try:
+            time.strptime(time_str, "%H:%M")
+            return True
+        except ValueError:
+            return False
+
+    def scheduler_loop(self):
+        """Main scheduler loop"""
+        while self.scheduler_running:
+            try:
+                current_time = datetime.now().strftime("%H:%M")
+                scheduled_time = self.scheduler_time.get()
+
+                if current_time == scheduled_time:
+                    self.update_log(f"Menjalankan scheduled analysis pada {current_time}")
+                    self.execute_scheduled_analysis()
+
+                    # Wait for 60 seconds to prevent multiple executions
+                    time.sleep(60)
+
+                # Check every 10 seconds
+                time.sleep(10)
+
+            except Exception as e:
+                self.logger.error(f"Error in scheduler loop: {str(e)}")
+                time.sleep(30)  # Wait before retrying
+
+    def execute_scheduled_analysis(self):
+        """Execute the scheduled analysis"""
+        try:
+            if not self.monitoring_path.get():
+                self.update_log("Error: Folder monitoring belum dipilih")
+                return
+
+            self.update_log("Memulai scheduled analysis...")
+            self.update_status("Scheduled analysis berjalan...")
+
+            # Step 1: Start monitoring
+            self.is_monitoring = True
+            self.start_button.config(state=tk.DISABLED)
+            self.stop_button.config(state=tk.NORMAL)
+            self.update_status("Monitoring aktif...")
+
+            # Step 2: Update monitored files display
+            self.update_monitored_files_display()
+
+            # Step 3: Find and rename files with latest date
+            zip_files = self.find_zip_files(self.monitoring_path.get())
+            if zip_files:
+                self.update_log(f"Ditemukan {len(zip_files)} file backup untuk dianalisis")
+
+                # Step 3a: Rename files with latest date format
+                self.update_log("Memproses rename file dengan format tanggal terbaru...")
+                renamed_files = self.rename_files_with_latest_date(zip_files)
+
+                # Step 3b: Analyze renamed files
+                self.deep_scan_files()
+
+                # Step 4: Send email report
+                self.update_log("Mengirim laporan email scheduled...")
+                self.send_deep_analysis_email()
+            else:
+                self.update_log("Tidak ada file backup yang ditemukan")
+
+            # Step 5: Stop monitoring
+            self.is_monitoring = False
+            self.start_button.config(state=tk.NORMAL)
+            self.stop_button.config(state=tk.DISABLED)
+            self.update_status("Scheduled analysis selesai")
+            self.update_monitored_files_display()
+
+        except Exception as e:
+            self.logger.error(f"Error in scheduled analysis: {str(e)}")
+            self.update_log(f"Error dalam scheduled analysis: {str(e)}")
+
+    def manual_rename_files(self):
+        """Manual rename files with latest date format"""
+        try:
+            if not self.monitoring_path.get():
+                messagebox.showerror("Error", "Silakan pilih folder monitoring terlebih dahulu")
+                return
+
+            zip_files = self.find_zip_files(self.monitoring_path.get())
+            if not zip_files:
+                messagebox.showinfo("Info", "Tidak ada file backup yang ditemukan")
+                return
+
+            result = messagebox.askyesno("Konfirmasi Rename",
+                f"Ditemukan {len(zip_files)} file backup.\n\n"
+                "File akan di-rename menggunakan format tanggal terbaru.\n\n"
+                "Lanjutkan dengan rename?")
+
+            if result:
+                self.update_log("Memulai manual rename file...")
+                renamed_files = self.rename_files_with_latest_date(zip_files)
+                self.update_log(f"Manual rename selesai. {len(renamed_files)} file diproses.")
+                self.update_monitored_files_display()
+
+                messagebox.showinfo("Selesai", f"Rename file selesai. {len(renamed_files)} file diproses.")
+            else:
+                self.update_log("Manual rename dibatalkan oleh user")
+
+        except Exception as e:
+            self.logger.error(f"Error in manual_rename_files: {str(e)}")
+            messagebox.showerror("Error", f"Terjadi error: {str(e)}")
+
+    def test_status_classification(self):
+        """Test status classification and display results"""
+        try:
+            if not self.summary_data:
+                # Run a quick scan first if no data
+                self.update_log("No analysis data found. Running quick scan...")
+                self.deep_scan_files()
+
+            if not self.summary_data:
+                messagebox.showwarning("No Data", "Tidak ada data untuk dianalisis. Silakan jalankan scan terlebih dahulu.")
+                return
+
+            # Test status classification
+            backup_validity = self.get_overall_backup_validity()
+            backup_status = self.get_overall_backup_status()
+
+            # Create status report
+            status_report = f"""=== Status Classification Test Results ===
+
+Overall Backup Status:
+- Validity: {backup_validity.upper()}
+- Status: {backup_status.upper().replace('DATED', 'DATE')}
+- Email Subject: [{backup_validity.upper()}|{backup_status.upper().replace('DATED', 'DATE')}]
+
+Configuration:
+- Max Age Days: {self.config.getint('BACKUP_STATUS', 'max_age_days', fallback=7)}
+- Current Date: {datetime.now().strftime('%Y-%m-%d')}
+
+File Analysis:
+- Total Files: {len(self.summary_data)}
+"""
+
+            # Add file-specific details
+            for i, (file_path, file_info) in enumerate(self.summary_data.items(), 1):
+                filename = os.path.basename(file_path)
+                file_status = file_info.get('status', 'Unknown')
+                file_mod_time = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y-%m-%d') if os.path.exists(file_path) else 'Unknown'
+
+                status_report += f"""
+  {i}. {filename}
+     - Status: {file_status}
+     - Modified: {file_mod_time}"""
+
+                # Add BAK file info
+                deep_analysis = file_info.get('deep_analysis', {})
+                extracted_files = deep_analysis.get('extracted_files', [])
+                if extracted_files:
+                    status_report += f"""
+     - BAK Files: {len(extracted_files)}"""
+                    for bak_file in extracted_files[:2]:  # Show max 2 BAK files
+                        bak_filename = bak_file.get('filename', 'Unknown')
+                        bak_date = bak_file.get('backup_date', 'Unknown')
+                        status_report += f"""
+       * {bak_filename} ({bak_date})"""
+
+            # Show in message box
+            result_text = tk.Toplevel(self.root)
+            result_text.title("Status Classification Test")
+            result_text.geometry("600x500")
+
+            text_widget = scrolledtext.ScrolledText(result_text, wrap=tk.WORD, width=70, height=30)
+            text_widget.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+            text_widget.insert(1.0, status_report)
+            text_widget.config(state=tk.DISABLED)
+
+            close_btn = ttk.Button(result_text, text="Close", command=result_text.destroy)
+            close_btn.pack(pady=5)
+
+            # Also log the results
+            self.update_log(f"Status test completed: {backup_validity.upper()}|{backup_status.upper().replace('DATED', 'DATE')}")
+
+        except Exception as e:
+            self.logger.error(f"Error in test_status_classification: {str(e)}")
+            messagebox.showerror("Error", f"Terjadi error: {str(e)}")
 
     def browse_path(self):
         """Pilih folder untuk dimonitor"""
@@ -216,9 +521,19 @@ class ZipBackupMonitorEnhanced:
         self.update_status("Monitoring aktif...")
         self.update_log("Monitoring dimulai...")
 
+        # Initialize the monitored files display
+        self.update_monitored_files_display()
+
         # Start monitoring in background thread
         self.monitoring_thread = threading.Thread(target=self.monitoring_loop, daemon=True)
         self.monitoring_thread.start()
+
+        # Perform initial scan and send report if requested
+        if self.send_immediate_report.get():
+            self.update_log("Melakukan scan awal dan mengirim laporan...")
+            self.deep_scan_files()
+            # Send report after initial analysis
+            self.send_deep_analysis_email()
 
     def stop_monitoring(self):
         """Hentikan monitoring"""
@@ -228,19 +543,18 @@ class ZipBackupMonitorEnhanced:
         self.update_status("Monitoring dihentikan")
         self.update_log("Monitoring dihentikan.")
 
+        # Update the monitored files display to show monitoring stopped
+        self.update_monitored_files_display()
+
     def monitoring_loop(self):
-        """Loop monitoring utama"""
+        """Simple monitoring loop - now primarily for display updates"""
         while self.is_monitoring:
             try:
-                # Check if monitoring is still active
-                if not self.is_monitoring:
-                    break
+                # Update display periodically
+                self.update_monitored_files_display()
 
-                # Auto-scan every 5 minutes
-                self.deep_scan_files()
-
-                # Wait for next check
-                for _ in range(300):  # 5 minutes
+                # Wait for next update
+                for _ in range(60):  # 60 seconds between display updates
                     if not self.is_monitoring:
                         break
                     time.sleep(1)
@@ -254,6 +568,9 @@ class ZipBackupMonitorEnhanced:
         # Start scanning in a separate thread to prevent GUI freezing
         scan_thread = threading.Thread(target=self._deep_scan_thread, daemon=True)
         scan_thread.start()
+        
+        # Update the file display after scanning
+        self.update_file_display()
 
     def _deep_scan_thread(self):
         """Thread function for deep scanning files"""
@@ -294,13 +611,23 @@ class ZipBackupMonitorEnhanced:
             self.update_log(f"Error deep scanning: {str(e)}")
             self.update_status("Error deep scanning")
 
+    def is_valid_backup_filename(self, filename: str) -> bool:
+        """Check if filename matches the valid backup patterns"""
+        if not filename.lower().endswith('.zip'):
+            return False
+
+        file_lower = filename.lower()
+        return any(file_lower.startswith(prefix) for prefix in self.valid_backup_prefixes)
+
     def find_zip_files(self, path: str) -> List[str]:
-        """Cari semua file ZIP dalam folder"""
+        """Cari semua file ZIP dalam folder dengan filter nama tertentu"""
         zip_files = []
+
         for root, dirs, files in os.walk(path):
             for file in files:
-                if file.lower().endswith('.zip'):
+                if self.is_valid_backup_filename(file):
                     zip_files.append(os.path.join(root, file))
+
         return zip_files
 
     def get_latest_date(self, files: List[str]) -> str:
@@ -319,6 +646,74 @@ class ZipBackupMonitorEnhanced:
         mod_time = os.path.getmtime(file_path)
         file_date = datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d')
         return file_date == target_date
+
+    def rename_files_with_latest_date(self, files: List[str]) -> List[str]:
+        """Rename files dengan format tanggal terbaru dari file yang paling baru"""
+        if not files:
+            return []
+
+        try:
+            # Get the latest modification time from all files
+            latest_time = 0
+            for file_path in files:
+                mod_time = os.path.getmtime(file_path)
+                if mod_time > latest_time:
+                    latest_time = mod_time
+
+            latest_date = datetime.fromtimestamp(latest_time)
+            date_str = latest_date.strftime('%Y-%m-%d')
+
+            renamed_files = []
+            rename_log = []
+
+            for file_path in files:
+                try:
+                    filename = os.path.basename(file_path)
+                    dir_path = os.path.dirname(file_path)
+
+                    # Extract base name without date
+                    base_name = filename
+                    for prefix in self.valid_backup_prefixes:
+                        if filename.lower().startswith(prefix):
+                            # Remove existing date pattern and keep the prefix
+                            base_name = prefix
+                            break
+
+                    # Create new filename with latest date
+                    new_filename = f"{base_name} {date_str}.zip"
+                    new_file_path = os.path.join(dir_path, new_filename)
+
+                    # Only rename if filename is different
+                    if file_path != new_file_path:
+                        # Check if new filename already exists
+                        if os.path.exists(new_file_path):
+                            self.update_log(f"File already exists, skipping rename: {new_filename}")
+                            renamed_files.append(file_path)  # Keep original
+                            continue
+
+                        # Rename the file
+                        os.rename(file_path, new_file_path)
+                        rename_log.append(f"Renamed: {filename} -> {new_filename}")
+                        renamed_files.append(new_file_path)
+                    else:
+                        renamed_files.append(file_path)
+
+                except Exception as e:
+                    self.logger.error(f"Error renaming file {file_path}: {str(e)}")
+                    self.update_log(f"Error renaming {os.path.basename(file_path)}: {str(e)}")
+                    renamed_files.append(file_path)  # Keep original on error
+
+            # Log rename operations
+            if rename_log:
+                self.update_log(f"File rename operations completed:")
+                for log_entry in rename_log:
+                    self.update_log(f"  {log_entry}")
+
+            return renamed_files
+
+        except Exception as e:
+            self.logger.error(f"Error in rename_files_with_latest_date: {str(e)}")
+            return files  # Return original files on error
 
     def deep_analyze_files_threaded(self, files: List[str]):
         """Deep analyze files dengan BAK analysis mendalam"""
@@ -901,20 +1296,25 @@ class ZipBackupMonitorEnhanced:
 
     def update_file_list(self, file_info: Dict):
         """Update daftar file di GUI"""
-        filename = os.path.basename(file_info['path'])
-        backup_type = file_info.get('backup_type', 'Unknown')
-        size = self.format_size(file_info['size'])
-        status = file_info['status']
-        compression = f"{file_info.get('compression_ratio', 0):.1f}%"
+        # Clear the current file list to replace with updated content
+        self.files_text.delete(1.0, tk.END)
+        
+        # Add all current summary data to the display
+        for path, info in self.summary_data.items():
+            filename = os.path.basename(info['path'])
+            backup_type = info.get('backup_type', 'Unknown')
+            size = self.format_size(info['size'])
+            status = info['status']
+            compression = f"{info.get('compression_ratio', 0):.1f}%"
 
-        # Deep analysis info
-        deep_params = file_info.get('deep_parameters', {})
-        bak_count = deep_params.get('bak_file_count', 0)
-        dbatools_status = deep_params.get('dbatools_status', 'Unknown')
-        one_day_diff = "✓" if deep_params.get('file_date_one_day_different', False) else "✗"
+            # Deep analysis info
+            deep_params = info.get('deep_parameters', {})
+            bak_count = deep_params.get('bak_file_count', 0)
+            dbatools_status = deep_params.get('dbatools_status', 'Unknown')
+            one_day_diff = "✓" if deep_params.get('file_date_one_day_different', False) else "✗"
 
-        file_entry = f"{filename} | {backup_type} | {size} | {status} | BAK: {bak_count} | DBATools: {dbatools_status} | 1Day: {one_day_diff} | Kompresi: {compression}\n"
-        self.files_text.insert(tk.END, file_entry)
+            file_entry = f"{filename} | {backup_type} | {size} | {status} | BAK: {bak_count} | DBATools: {dbatools_status} | 1Day: {one_day_diff} | Kompresi: {compression}\n"
+            self.files_text.insert(tk.END, file_entry)
 
     def update_bak_analysis(self, file_info: Dict):
         """Update BAK analysis di GUI"""
@@ -1249,77 +1649,154 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             self.update_log(f"Gagal mengirim email test: {str(e)}")
 
     def get_overall_backup_validity(self) -> str:
-        """Determine overall backup validity (Valid/Invalid) based on BAK file readability"""
+        """Determine overall backup validity (Valid/Invalid) based on file corruption and readability"""
         try:
             if not self.summary_data:
                 return "Valid"
-            
-            total_bak_files = 0
-            valid_bak_files = 0
-            
+
+            total_files = 0
+            corrupted_files = 0
+            corruption_details = []
+
             for file_info in self.summary_data.values():
+                total_files += 1
+                filename = os.path.basename(file_info.get('file_path', '')) or "Unknown"
+
+                # Check if ZIP file itself is corrupted
+                if file_info.get('status') == 'Corrupted':
+                    corrupted_files += 1
+                    corruption_details.append(f"{filename}: ZIP file corrupted")
+                    continue
+
+                # Check BAK files within ZIP
                 deep_analysis = file_info.get('deep_analysis', {})
                 extracted_files = deep_analysis.get('extracted_files', [])
-                
+
+                has_valid_bak = False
+                bak_issues = []
+
                 for bak_file in extracted_files:
                     if bak_file.get('excluded', False):
                         continue
-                    
-                    total_bak_files += 1
+
+                    bak_filename = bak_file.get('filename', 'Unknown BAK')
                     validation_checklist = bak_file.get('validation_checklist', {})
-                    
+
                     if validation_checklist:
-                        # Check critical validation items for readability
+                        # Check critical validation items for basic readability
                         critical_checks = [
                             'file_ada_dan_dapat_diakses',
-                            'dbatools_dapat_membaca', 
-                            'sql_server_dapat_membaca',
-                            'format_backup_valid',
-                            'tidak_corrupt'
+                            'tidak_corrupt',
+                            'format_backup_valid'
                         ]
-                        
-                        critical_passed = sum(1 for check in critical_checks 
-                                            if validation_checklist.get(check, {}).get('status', False))
-                        
-                        # BAK file is valid if at least 80% of critical checks pass
-                        if critical_passed >= len(critical_checks) * 0.8:
-                            valid_bak_files += 1
-            
-            # Overall validity: at least 70% of BAK files must be valid
-            if total_bak_files == 0:
+
+                        failed_checks = []
+                        for check in critical_checks:
+                            if not validation_checklist.get(check, {}).get('status', False):
+                                failed_checks.append(check)
+
+                        # BAK file is readable if basic checks pass
+                        if len(failed_checks) <= 1:  # At most 1 critical check can fail
+                            has_valid_bak = True
+                        else:
+                            bak_issues.append(f"{bak_filename}: Failed checks: {', '.join(failed_checks)}")
+
+                # If no valid BAK files found in ZIP, consider it corrupted
+                if not has_valid_bak and extracted_files:
+                    corrupted_files += 1
+                    if bak_issues:
+                        corruption_details.extend(bak_issues)
+                    else:
+                        corruption_details.append(f"{filename}: No readable BAK files found")
+
+            # Log validity determination details
+            if corrupted_files > 0:
+                self.logger.info(f"Backup validity: INVALID ({corrupted_files}/{total_files} files corrupted)")
+                for detail in corruption_details:
+                    self.logger.info(f"  - {detail}")
+            else:
+                self.logger.info(f"Backup validity: VALID (all {total_files} files readable)")
+
+            # If no files at all, return Valid
+            if total_files == 0:
                 return "Valid"
-            
-            validity_rate = (valid_bak_files / total_bak_files) * 100
-            return "Valid" if validity_rate >= 70 else "Invalid"
-            
+
+            # If any files are corrupted, return Invalid
+            if corrupted_files > 0:
+                return "Invalid"
+
+            return "Valid"
+
         except Exception as e:
             self.logger.warning(f"Error determining backup validity: {e}")
             return "Valid"
 
     def get_overall_backup_status(self) -> str:
-        """Determine overall backup status (Outdated/Updated) based on all files"""
+        """Determine overall backup status (Outdated/Updated) based on backup dates vs current date"""
         try:
             if not self.summary_data:
                 return "Updated"
-            
-            # Check if any backup files are outdated
+
+            current_date = datetime.now()
+            max_age_days = self.config.getint('BACKUP_STATUS', 'max_age_days', fallback=7)  # Files older than X days are considered outdated
+
             has_outdated = False
+            outdated_details = []
+
             for file_info in self.summary_data.values():
-                # Check ZIP file outdated status
-                if file_info.get('is_outdated', False):
-                    has_outdated = True
-                    break
-                
-                # Check BAK files within ZIP
-                bak_files = file_info.get('bak_files', [])
-                for bak_file in bak_files:
-                    if bak_file.get('is_outdated', False):
+                # Check ZIP file modification date
+                file_path = file_info.get('file_path', '')
+                filename = os.path.basename(file_path) if file_path else "Unknown"
+
+                if file_path and os.path.exists(file_path):
+                    mod_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+                    days_diff = (current_date - mod_time).days
+
+                    if days_diff > max_age_days:
                         has_outdated = True
+                        outdated_details.append(f"{filename}: {days_diff} days old")
+                        continue
+
+                # Also check BAK files dates within ZIP if available
+                deep_analysis = file_info.get('deep_analysis', {})
+                extracted_files = deep_analysis.get('extracted_files', [])
+
+                for bak_file in extracted_files:
+                    if bak_file.get('excluded', False):
+                        continue
+
+                    # Check BAK file date if available
+                    bak_date_str = bak_file.get('backup_date', '')
+                    bak_filename = bak_file.get('filename', 'Unknown BAK')
+
+                    if bak_date_str:
+                        try:
+                            # Parse various date formats
+                            for date_format in ['%Y-%m-%d', '%Y-%m-%d %H:%M:%S', '%Y%m%d']:
+                                try:
+                                    bak_date = datetime.strptime(bak_date_str, date_format)
+                                    days_diff = (current_date - bak_date).days
+                                    if days_diff > max_age_days:
+                                        has_outdated = True
+                                        outdated_details.append(f"{bak_filename}: {days_diff} days old")
+                                        break
+                                except ValueError:
+                                    continue
+                        except Exception:
+                            pass
+
+                    if has_outdated:
                         break
-                
+
                 if has_outdated:
                     break
-            
+
+            # Log status determination details
+            if has_outdated:
+                self.logger.info(f"Backup status: OUTDATED (>{max_age_days} days). Reasons: {'; '.join(outdated_details)}")
+            else:
+                self.logger.info("Backup status: UPDATED (all files within age threshold)")
+
             return "Outdated" if has_outdated else "Updated"
         except Exception as e:
             self.logger.warning(f"Error determining backup status: {e}")
@@ -1336,18 +1813,21 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             # Get overall backup validity and status for subject
             backup_validity = self.get_overall_backup_validity()
             backup_status = self.get_overall_backup_status()
-            
+
+            # Log the final status determination
+            self.update_log(f"Email subject status: {backup_validity.upper()}|{backup_status.upper().replace('DATED', 'DATE')}")
+
             # Create combined subject based on both validity and status
             validity_label = backup_validity.upper()  # VALID or INVALID
-            
+
             if backup_status.upper() == "OUTDATED":
-                status_label = "OUTDATED"
+                status_label = "OUTDATE"
             elif backup_status.upper() == "UPDATED":
-                status_label = "UPDATED"
+                status_label = "UPDATE"
             else:
-                status_label = "UPDATED"  # Default to UPDATED if not outdated
-            
-            subject = f"[{validity_label}-{status_label}] Deep Analysis Report - {datetime.now().strftime('%Y-%m-%d')}"
+                status_label = "UPDATE"  # Default to UPDATE if not outdated
+
+            subject = f"[{validity_label}|{status_label}] Deep Analysis Report - {datetime.now().strftime('%Y-%m-%d')}"
             body = self.generate_deep_analysis_email_template()
 
             self.send_email(subject, body)
@@ -2359,6 +2839,52 @@ Enhanced Backup Monitor v3.0 - Analisis Real-time dengan 12 Parameter Validasi
         self.log_text.insert(tk.END, log_entry)
         self.log_text.see(tk.END)
 
+    def update_monitored_files_display(self):
+        """Update the monitored files tab display"""
+        self.monitored_text.delete(1.0, tk.END)
+
+        # Header information
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.monitored_text.insert(tk.END, f"=== Daftar File Backup Yang Dimonitor ===\n")
+        self.monitored_text.insert(tk.END, f"Diperbarui: {timestamp}\n")
+        self.monitored_text.insert(tk.END, f"Filter Prefix: {', '.join(self.valid_backup_prefixes)}\n")
+        self.monitored_text.insert(tk.END, f"Jumlah File Dipantau: {len(self.last_file_modification_times)}\n")
+        self.monitored_text.insert(tk.END, f"Status Monitoring: {'Aktif' if self.is_monitoring else 'Non-aktif'}\n")
+        self.monitored_text.insert(tk.END, f"{'='*80}\n\n")
+
+        if not self.last_file_modification_times:
+            self.monitored_text.insert(tk.END, "Belum ada file backup yang dipantau.\n")
+            self.monitored_text.insert(tk.END, "Pastikan folder monitoring berisi file ZIP dengan prefix yang valid:\n")
+            self.monitored_text.insert(tk.END, f"- {self.valid_backup_prefixes[0]}*.zip\n")
+            self.monitored_text.insert(tk.END, f"- {self.valid_backup_prefixes[1]}*.zip\n")
+            self.monitored_text.insert(tk.END, f"- {self.valid_backup_prefixes[2]}*.zip\n")
+            return
+
+        # Sort files by modification time (newest first)
+        sorted_files = sorted(self.last_file_modification_times.items(),
+                             key=lambda x: x[1], reverse=True)
+
+        # Display files with detailed information
+        self.monitored_text.insert(tk.END, "Daftar File (dari yang terbaru):\n")
+        self.monitored_text.insert(tk.END, f"{'No.':<5} {'Nama File':<40} {'Ukuran (MB)':<12} {'Terakhir Dimodifikasi':<20}\n")
+        self.monitored_text.insert(tk.END, f"{'-'*5} {'-'*40} {'-'*12} {'-'*20}\n")
+
+        for i, (file_path, mod_time) in enumerate(sorted_files, 1):
+            filename = os.path.basename(file_path)
+            file_size = os.path.getsize(file_path) / (1024 * 1024)  # Convert to MB
+            mod_date = datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d %H:%M:%S')
+
+            # Truncate long filenames
+            display_filename = filename if len(filename) <= 38 else filename[:35] + '...'
+
+            self.monitored_text.insert(tk.END, f"{i:<5} {display_filename:<40} {file_size:>8.2f} MB  {mod_date:<20}\n")
+
+        self.monitored_text.insert(tk.END, f"\n{'='*80}\n")
+        self.monitored_text.insert(tk.END, f"Total: {len(self.last_file_modification_times)} file backup dipantau\n")
+
+        # Scroll to bottom
+        self.monitored_text.see(tk.END)
+
     def format_size(self, size_bytes: int) -> str:
         """Format size dalam format yang mudah dibaca"""
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
@@ -2692,6 +3218,33 @@ Enhanced Backup Monitor v3.0 - Analisis Real-time dengan 12 Parameter Validasi
                         bak_summary['by_validation_status']['invalid'] += 1
 
         return bak_summary
+
+    def update_file_display(self):
+        """Update the file display to show only valid files"""
+        # Clear the file list
+        self.files_text.delete(1.0, tk.END)
+        
+        # Add valid files to the display
+        for file_path, file_info in self.summary_data.items():
+            # Only display files that match our naming convention
+            filename = os.path.basename(file_path).lower()
+            if (filename.startswith('backupstaging') or 
+                filename.startswith('backupvenuz') or 
+                filename.startswith('plantwarep3')):
+                
+                backup_type = file_info.get('backup_type', 'Unknown')
+                size = self.format_size(file_info['size'])
+                status = file_info['status']
+                compression = f"{file_info.get('compression_ratio', 0):.1f}%"
+
+                # Deep analysis info
+                deep_params = file_info.get('deep_parameters', {})
+                bak_count = deep_params.get('bak_file_count', 0)
+                dbatools_status = deep_params.get('dbatools_status', 'Unknown')
+                one_day_diff = "✓" if deep_params.get('file_date_one_day_different', False) else "✗"
+
+                file_entry = f"{os.path.basename(file_path)} | {backup_type} | {size} | {status} | BAK: {bak_count} | DBATools: {dbatools_status} | 1Day: {one_day_diff} | Kompresi: {compression}\n"
+                self.files_text.insert(tk.END, file_entry)
 
 def main():
     root = tk.Tk()
