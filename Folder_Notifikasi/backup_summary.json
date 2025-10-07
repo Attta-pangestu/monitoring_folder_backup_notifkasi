@@ -1,0 +1,60 @@
+{
+  "generated_at": "2025-10-07T09:30:08.684590",
+  "backup_path": "D:/Gawean Rebinmas/App_Auto_Backup/Backup",
+  "scan_results": {
+    "total_zip_files": 4,
+    "valid_zip_files": 2,
+    "extracted_files": 0,
+    "total_bak_files": 0,
+    "valid_bak_files": 0
+  },
+  "files": [
+    {
+      "filename": "BackupStaging 2025-10-04 09;16;30.zip",
+      "path": "D:/Gawean Rebinmas/App_Auto_Backup/Backup\\BackupStaging 2025-10-04 09;16;30.zip",
+      "size": 279438828,
+      "size_formatted": "266.5 MB",
+      "modified": "2025-10-04T09:18:44.648100",
+      "backup_type": "BackupStaging",
+      "status": "Valid",
+      "bak_files": []
+    },
+    {
+      "filename": "BackupVenuz 2025-10-04 10;17;35.zip",
+      "path": "D:/Gawean Rebinmas/App_Auto_Backup/Backup\\BackupVenuz 2025-10-04 10;17;35.zip",
+      "size": 139243531,
+      "size_formatted": "132.8 MB",
+      "modified": "2025-10-04T10:20:14.047731",
+      "backup_type": "BackupVenus",
+      "status": "Valid",
+      "bak_files": []
+    }
+  ],
+  "by_type": {
+    "BackupStaging": {
+      "count": 1,
+      "valid": 1,
+      "excluded": false
+    },
+    "BackupVenus": {
+      "count": 1,
+      "valid": 1,
+      "excluded": false
+    },
+    "PlantwareP3": {
+      "count": 0,
+      "valid": 0,
+      "excluded": true
+    },
+    "Unknown": {
+      "count": 0,
+      "valid": 0,
+      "excluded": false
+    }
+  },
+  "checklist_results": [],
+  "configuration": {
+    "exclude_plantware": true,
+    "extract_files": true
+  }
+}

@@ -1,0 +1,14 @@
+# Zip Backup Monitor Requirements
+# Python 3.10+ required
+
+# Standard library modules (no additional pip install needed):
+# tkinter, os, json, zipfile, sqlite3, subprocess, smtplib, datetime, email, threading, time, logging, pathlib, configparser, typing, re
+
+# Optional dependencies for enhanced functionality:
+# pillow>=9.0.0  # For image processing if needed
+# requests>=2.25.0  # For web requests if needed
+# pywin32>=304  # For Windows-specific functionality
+
+# Database connectivity (optional):
+# pyodbc>=4.0.0  # For SQL Server connectivity
+# pymssql>=2.2.0  # Alternative SQL Server connectivity

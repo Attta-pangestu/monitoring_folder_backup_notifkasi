@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/Gawean Rebinmas/App_Auto_Backup/Notiikasi_Database/**)",
+      "mcp__obsidian-mcp-tools__create_vault_file",
+      "Bash(python:*)",
+      "Read(//d/Gawean Rebinmas/App_Auto_Backup/Backup/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
