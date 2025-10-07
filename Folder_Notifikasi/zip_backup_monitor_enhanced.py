@@ -690,7 +690,10 @@ class ZipBackupMonitorEnhanced:
             # Extract basic info from output
             for line in lines:
                 if 'BackupStartDate' in line and len(line.split()) > 1:
-                    info['backup_date'] = line.split()[-1]
+                    # Try to get a proper date, not just the last word
+                    date_part = line.split()[-1]
+                    if date_part and date_part != 'CompressionAlgorithm':
+                        info['backup_date'] = date_part
                 elif 'DatabaseName' in line and len(line.split()) > 1:
                     info['database_name'] = line.split()[-1]
                 elif 'BackupSize' in line and len(line.split()) > 1:
@@ -698,6 +701,17 @@ class ZipBackupMonitorEnhanced:
                         info['backup_size'] = int(line.split()[-1])
                     except:
                         pass
+
+            # If backup_date is still not set or invalid, use ZIP file date
+            if not info.get('backup_date') or info['backup_date'] == 'CompressionAlgorithm':
+                # Use ZIP file modification date as backup date
+                zip_path = bak_path.replace('.bak', '.zip')
+                if os.path.exists(zip_path):
+                    zip_mod_time = datetime.fromtimestamp(os.path.getmtime(zip_path))
+                    info['backup_date'] = zip_mod_time.strftime('%Y-%m-%d %H:%M:%S')
+                else:
+                    # Fallback to current date
+                    info['backup_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
             return info
 
@@ -1209,18 +1223,21 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     def send_test_email(self):
         """Kirim email test dengan enhanced subject"""
         try:
-            # Get overall backup status for subject
+            # Get overall backup validity and status for subject
+            backup_validity = self.get_overall_backup_validity()
             backup_status = self.get_overall_backup_status()
             
-            # Create proper subject based on backup status
-            if backup_status == "OUTDATED":
-                status_label = "OUTDATED"
-            elif backup_status == "UPDATE":
-                status_label = "UPDATE"
-            else:
-                status_label = "VALID"
+            # Create combined subject based on both validity and status
+            validity_label = backup_validity.upper()  # VALID or INVALID
             
-            subject = f"[{status_label}] Enhanced Monitor Backup - Email Test"
+            if backup_status.upper() == "OUTDATED":
+                status_label = "OUTDATED"
+            elif backup_status.upper() == "UPDATED":
+                status_label = "UPDATED"
+            else:
+                status_label = "UPDATED"  # Default to UPDATED if not outdated
+            
+            subject = f"[{validity_label}-{status_label}] Enhanced Monitor Backup - Email Test"
             body = "Ini adalah email test dari Enhanced Monitor Backup.\n\nWaktu pengiriman: " + datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
             self.send_email(subject, body)
@@ -1230,6 +1247,54 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         except Exception as e:
             messagebox.showerror("Error", f"Gagal mengirim email test: {str(e)}")
             self.update_log(f"Gagal mengirim email test: {str(e)}")
+
+    def get_overall_backup_validity(self) -> str:
+        """Determine overall backup validity (Valid/Invalid) based on BAK file readability"""
+        try:
+            if not self.summary_data:
+                return "Valid"
+            
+            total_bak_files = 0
+            valid_bak_files = 0
+            
+            for file_info in self.summary_data.values():
+                deep_analysis = file_info.get('deep_analysis', {})
+                extracted_files = deep_analysis.get('extracted_files', [])
+                
+                for bak_file in extracted_files:
+                    if bak_file.get('excluded', False):
+                        continue
+                    
+                    total_bak_files += 1
+                    validation_checklist = bak_file.get('validation_checklist', {})
+                    
+                    if validation_checklist:
+                        # Check critical validation items for readability
+                        critical_checks = [
+                            'file_ada_dan_dapat_diakses',
+                            'dbatools_dapat_membaca', 
+                            'sql_server_dapat_membaca',
+                            'format_backup_valid',
+                            'tidak_corrupt'
+                        ]
+                        
+                        critical_passed = sum(1 for check in critical_checks 
+                                            if validation_checklist.get(check, {}).get('status', False))
+                        
+                        # BAK file is valid if at least 80% of critical checks pass
+                        if critical_passed >= len(critical_checks) * 0.8:
+                            valid_bak_files += 1
+            
+            # Overall validity: at least 70% of BAK files must be valid
+            if total_bak_files == 0:
+                return "Valid"
+            
+            validity_rate = (valid_bak_files / total_bak_files) * 100
+            return "Valid" if validity_rate >= 70 else "Invalid"
+            
+        except Exception as e:
+            self.logger.warning(f"Error determining backup validity: {e}")
+            return "Valid"
 
     def get_overall_backup_status(self) -> str:
         """Determine overall backup status (Outdated/Updated) based on all files"""
@@ -1268,18 +1333,21 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 messagebox.showwarning("Warning", "Tidak ada data deep analysis untuk dikirim")
                 return
 
-            # Get overall backup status for subject
+            # Get overall backup validity and status for subject
+            backup_validity = self.get_overall_backup_validity()
             backup_status = self.get_overall_backup_status()
             
-            # Create proper subject based on backup status
-            if backup_status == "OUTDATED":
-                status_label = "OUTDATED"
-            elif backup_status == "UPDATE":
-                status_label = "UPDATE"
-            else:
-                status_label = "VALID"
+            # Create combined subject based on both validity and status
+            validity_label = backup_validity.upper()  # VALID or INVALID
             
-            subject = f"[{status_label}] Deep Analysis Report - {datetime.now().strftime('%Y-%m-%d')}"
+            if backup_status.upper() == "OUTDATED":
+                status_label = "OUTDATED"
+            elif backup_status.upper() == "UPDATED":
+                status_label = "UPDATED"
+            else:
+                status_label = "UPDATED"  # Default to UPDATED if not outdated
+            
+            subject = f"[{validity_label}-{status_label}] Deep Analysis Report - {datetime.now().strftime('%Y-%m-%d')}"
             body = self.generate_deep_analysis_email_template()
 
             self.send_email(subject, body)
@@ -1708,7 +1776,9 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 try:
                     modified_time = datetime.fromisoformat(modified_time.replace('Z', '+00:00'))
                 except:
-                    modified_time = datetime.now()
+                    # Fallback: use days_since_backup to calculate approximate date
+                    days_since = file_info.get('days_since_backup', 0)
+                    modified_time = datetime.now() - timedelta(days=days_since) if days_since > 0 else datetime.now()
 
             # Use actual days_since_backup from file_info if available
             days_diff = file_info.get('days_since_backup', 0)

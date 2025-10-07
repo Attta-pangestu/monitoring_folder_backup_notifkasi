@@ -25,8 +25,30 @@ def test_corrected_email():
     if os.path.exists(summary_file):
         with open(summary_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            monitor.summary_data = data.get('zip_files', {})
-            monitor.bak_summary = data.get('bak_analysis', {})
+            # Load data correctly based on JSON structure
+            if isinstance(data, dict):
+                # Check if it's the new structure with zip_files and bak_analysis
+                if 'zip_files' in data and 'bak_analysis' in data:
+                    monitor.summary_data = data.get('zip_files', {})
+                    monitor.bak_summary = data.get('bak_analysis', {})
+                else:
+                    # It's the old structure where keys are file paths
+                    monitor.summary_data = data
+                    monitor.bak_summary = {'bak_files': []}
+                    
+                    # Extract BAK files from ZIP file data
+                    for file_path, file_info in data.items():
+                        if 'deep_analysis' in file_info:
+                            for extracted_file in file_info['deep_analysis'].get('extracted_files', []):
+                                if extracted_file.get('is_bak', False):
+                                    bak_info = {
+                                        'filename': extracted_file.get('filename', 'Unknown'),
+                                        'backup_type': extracted_file.get('backup_type', 'Unknown'),
+                                        'backup_date': extracted_file.get('sql_analysis', {}).get('backup_date', 'Unknown'),
+                                        'days_since_backup': file_info.get('days_since_backup', 0),
+                                        'is_outdated': file_info.get('is_outdated', False)
+                                    }
+                                    monitor.bak_summary.setdefault('bak_files', []).append(bak_info)
     
     print("\n1. Checking ZIP file dates:")
     for file_path, file_info in monitor.summary_data.items():
@@ -45,18 +67,21 @@ def test_corrected_email():
         print(f"   {filename}: BackupDate={backup_date}, Days={days_since}, Outdated={is_outdated}")
     
     print("\n3. Testing email subject:")
+    backup_validity = monitor.get_overall_backup_validity()
     backup_status = monitor.get_overall_backup_status()
     print(f"   Overall backup status: {backup_status}")
     
-    # Test subject generation logic
-    if backup_status == "OUTDATED":
-        status_label = "OUTDATED"
-    elif backup_status == "UPDATE":
-        status_label = "UPDATE"
-    else:
-        status_label = "VALID"
+    # Create combined subject based on both validity and status
+    validity_label = backup_validity.upper()  # VALID or INVALID
     
-    subject = f"[{status_label}] Deep Analysis Report - {datetime.now().strftime('%Y-%m-%d')}"
+    if backup_status.upper() == "OUTDATED":
+        status_label = "OUTDATED"
+    elif backup_status.upper() == "UPDATED":
+        status_label = "UPDATED"
+    else:
+        status_label = "UPDATED"  # Default to UPDATED if not outdated
+    
+    subject = f"[{validity_label}-{status_label}] Deep Analysis Report - {datetime.now().strftime('%Y-%m-%d')}"
     print(f"   Email subject: {subject}")
     
     print("\n4. Generating email template:")

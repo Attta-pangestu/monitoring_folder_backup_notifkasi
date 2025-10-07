@@ -1,0 +1,632 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laporan Analisis Backup Database</title>
+    <style>
+        @media screen {
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background-color: #f8f9fa;
+                color: #333;
+                line-height: 1.6;
+            }
+            .container {
+                max-width: 1000px;
+                margin: 0 auto;
+                background-color: white;
+                border: 1px solid #dee2e6;
+                border-radius: 8px;
+                box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            }
+            .header {
+                background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+                color: white;
+                padding: 25px;
+                text-align: center;
+                border-radius: 8px 8px 0 0;
+            }
+            .header h1 {
+                margin: 0;
+                font-size: 24px;
+                font-weight: 600;
+                letter-spacing: 0.5px;
+            }
+            .header p {
+                margin: 8px 0 0 0;
+                opacity: 0.9;
+                font-size: 14px;
+            }
+            .section {
+                margin: 25px;
+                padding: 20px;
+                border-radius: 6px;
+                border-left: 4px solid #2c3e50;
+                background-color: #ffffff;
+                border: 1px solid #e9ecef;
+            }
+            .section h2 {
+                color: #2c3e50;
+                margin-top: 0;
+                font-size: 18px;
+                font-weight: 600;
+                border-bottom: 2px solid #e9ecef;
+                padding-bottom: 8px;
+                margin-bottom: 20px;
+            }
+            .executive-summary {
+                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                border-left-color: #007bff;
+                border-top: 3px solid #007bff;
+            }
+            .executive-summary h2 {
+                color: #007bff;
+            }
+            .file-card {
+                background-color: #ffffff;
+                border: 1px solid #dee2e6;
+                border-radius: 4px;
+                padding: 15px;
+                margin: 12px 0;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            }
+            .file-name {
+                font-weight: 600;
+                color: #2c3e50;
+                font-size: 16px;
+                margin-bottom: 10px;
+                border-bottom: 1px solid #e9ecef;
+                padding-bottom: 5px;
+            }
+            .file-details {
+                font-size: 13px;
+            }
+            .detail-row {
+                display: flex;
+                justify-content: space-between;
+                margin: 4px 0;
+                padding: 2px 0;
+            }
+            .detail-label {
+                color: #6c757d;
+                font-weight: 500;
+            }
+            .detail-value {
+                font-weight: 600;
+                color: #2c3e50;
+            }
+            .status-badge {
+                padding: 3px 8px;
+                border-radius: 3px;
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .status-valid {
+                background-color: #d4edda;
+                color: #155724;
+                border: 1px solid #c3e6cb;
+            }
+            .status-warning {
+                background-color: #fff3cd;
+                color: #856404;
+                border: 1px solid #ffeaa7;
+            }
+            .status-invalid {
+                background-color: #f8d7da;
+                color: #721c24;
+                border: 1px solid #f5c6cb;
+            }
+            .status-outdated {
+                background-color: #f8d7da;
+                color: #721c24;
+                border: 1px solid #f5c6cb;
+            }
+            .status-current {
+                background-color: #d4edda;
+                color: #155724;
+                border: 1px solid #c3e6cb;
+            }
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+                margin: 20px 0;
+            }
+            .stat-card {
+                background-color: #ffffff;
+                padding: 15px;
+                border-radius: 6px;
+                border: 1px solid #dee2e6;
+                text-align: center;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            }
+            .stat-number {
+                font-size: 20px;
+                font-weight: 700;
+                color: #007bff;
+                margin-bottom: 5px;
+            }
+            .stat-label {
+                color: #6c757d;
+                font-size: 12px;
+                font-weight: 500;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .alert-section {
+                background-color: #fff3cd;
+                border-left-color: #ffc107;
+                border: 1px solid #ffeaa7;
+            }
+            .alert-section h2 {
+                color: #856404;
+            }
+            .recommendations {
+                background-color: #d4edda;
+                border-left-color: #28a745;
+                border: 1px solid #c3e6cb;
+            }
+            .recommendations h2 {
+                color: #155724;
+            }
+            .recommendations ul {
+                margin: 15px 0;
+                padding-left: 20px;
+            }
+            .recommendations li {
+                margin: 6px 0;
+                line-height: 1.5;
+            }
+            .footer {
+                background-color: #2c3e50;
+                color: white;
+                text-align: center;
+                padding: 15px;
+                font-size: 12px;
+            }
+            .critical-alerts {
+                background-color: #f8d7da;
+                border: 1px solid #f5c6cb;
+                border-radius: 6px;
+                padding: 15px;
+                margin: 15px 0;
+                text-align: center;
+            }
+            .critical-alerts .alert-number {
+                font-size: 20px;
+                font-weight: bold;
+                color: #721c24;
+                margin-bottom: 5px;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 15px 0;
+                background-color: white;
+                border: 1px solid #dee2e6;
+            }
+            th, td {
+                border: 1px solid #dee2e6;
+                padding: 10px;
+                text-align: left;
+                font-size: 13px;
+            }
+            th {
+                background-color: #f8f9fa;
+                color: #2c3e50;
+                font-weight: 600;
+                border-bottom: 2px solid #dee2e6;
+            }
+            tr:nth-child(even) {
+                background-color: #f8f9fa;
+            }
+            h3 {
+                color: #2c3e50;
+                font-size: 16px;
+                font-weight: 600;
+                margin: 20px 0 10px 0;
+                border-bottom: 1px solid #e9ecef;
+                padding-bottom: 5px;
+            }
+        }
+
+        /* Print-friendly styles */
+        @media print {
+            body {
+                background-color: white;
+                font-family: Arial, sans-serif;
+            }
+            .container {
+                box-shadow: none;
+                border: 1px solid #ccc;
+            }
+            .header {
+                background: #2c3e50 !important;
+                -webkit-print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SISTEM MONITORING BACKUP DATABASE</h1>
+            <p>LAPORAN ANALISIS LENGKAP</p>
+        </div>
+
+        <!-- INFORMASI PENTING BACKUP - PRIORITY SECTION -->
+        <div class="section priority-info" style="background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; margin-bottom: 25px;">
+            <h2 style="color: #856404; margin-top: 0;">INFORMASI KRITIS BACKUP</h2>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <h3 style="color: #856404; margin-bottom: 10px;">Informasi Backup</h3>
+                    <p style="margin: 5px 0; color: #856404;"><strong>Laporan Dibuat:</strong> 2025-10-07 11:59:45</p>
+                    <p style="margin: 5px 0; color: #856404;"><strong>Backup Terbaru:</strong> 2025-10-04 10:20:14</p>
+                    <p style="margin: 5px 0; color: #856404;"><strong>Backup Terlama:</strong> 2025-10-04 09:18:44</p>
+                    <p style="margin: 5px 0; color: #856404;"><strong>Total File Backup:</strong> 2</p>
+                </div>
+                <div>
+                    <h3 style="color: #856404; margin-bottom: 10px;">Status Kritis</h3>
+                    <p style="margin: 5px 0; color: #856404;"><strong>Item Perlu Perhatian:</strong> 4</p>
+                    <p style="margin: 5px 0; color: #856404;"><strong>Status Sistem:</strong> PERLU PERHATIAN</p>
+                </div>
+            </div>
+
+            <h3 style="color: #856404; margin-bottom: 15px;">Checklist Status Backup</h3>
+            <table style="width: 100%; border-collapse: collapse; background-color: white;">
+                <thead>
+                    <tr style="background-color: #f8f9fa;">
+                        <th style="padding: 12px; border: 1px solid #dee2e6; text-align: left; color: #856404;">Parameter</th>
+                        <th style="padding: 12px; border: 1px solid #dee2e6; text-align: center; color: #856404;">Status</th>
+                        <th style="padding: 12px; border: 1px solid #dee2e6; text-align: left; color: #856404;">Detail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>ZIP Bisa Dibuka</strong></td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge status-valid">
+                                ✓
+                            </span>
+                        </td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">
+                            2 dari 2 file ZIP valid
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>BAK File Valid</strong></td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge status-valid">
+                                ✓
+                            </span>
+                        </td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">
+                            2 file BAK bisa direstore
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>🕒 Backup Tidak Kadaluarsa</strong></td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge status-outdated">
+                                ✗
+                            </span>
+                        </td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">
+                            2 file outdated
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Ukuran Backup Cukup</strong></td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge status-warning">
+                                ⚠
+                            </span>
+                        </td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">
+                            2 file di bawah minimum
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 6px; border-left: 4px solid #007bff;">
+                <h4 style="margin-top: 0; color: #007bff;">📄 Informasi File Backup</h4>
+                
+                <!-- Tanggal Backup Section - More Prominent -->
+                <div style="background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2196f3;">
+                    <h5 style="margin: 0 0 10px 0; color: #1976d2; font-size: 16px;">📅 TANGGAL BACKUP (Berdasarkan Date Modified File)</h5>
+                    <div style="display: grid; gap: 8px;">
+
+                        <div style="background: white; padding: 10px; border-radius: 6px; border: 1px solid #e0e0e0;">
+                            <div style="font-weight: bold; color: #1976d2; margin-bottom: 4px;">BackupStaging 2025-10-04 09;16;30.zip</div>
+                            <div style="color: #388e3c; font-weight: bold; font-size: 14px;">🗓️ Tanggal Backup: 07 October 2025, 11:59:45</div>
+                            <div style="color: #666; font-size: 12px;">Tipe: BackupStaging | Usia: 0 hari | Status: Valid</div>
+                        </div>
+
+                        <div style="background: white; padding: 10px; border-radius: 6px; border: 1px solid #e0e0e0;">
+                            <div style="font-weight: bold; color: #1976d2; margin-bottom: 4px;">BackupVenuz 2025-10-04 10;17;35.zip</div>
+                            <div style="color: #388e3c; font-weight: bold; font-size: 14px;">🗓️ Tanggal Backup: 07 October 2025, 11:59:45</div>
+                            <div style="color: #666; font-size: 12px;">Tipe: BackupVenus | Usia: 0 hari | Status: Valid</div>
+                        </div>
+
+                    </div>
+                </div>
+                
+                <div style="color: #6c757d;">
+                    <p style="margin: 5px 0;"><strong>File ZIP Dianalisis:</strong></p>
+                    <ul style="margin: 5px 0; padding-left: 20px;">
+
+                        <li><strong>BackupStaging 2025-10-04 09;16;30.zip</strong> (BackupStaging) - Status: Valid</li>
+
+                        <li><strong>BackupVenuz 2025-10-04 10;17;35.zip</strong> (BackupVenus) - Status: Valid</li>
+
+                    </ul>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="section executive-summary">
+            <h2>Ringkasan Eksekutif</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">2025-10-07 11:59:45</div>
+                    <div class="stat-label">Laporan Dibuat</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">2</div>
+                    <div class="stat-label">Total Arsip ZIP</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">2</div>
+                    <div class="stat-label">File ZIP Valid</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">100.0%</div>
+                    <div class="stat-label">Tingkat Keberhasilan</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">2025-10-04</div>
+                    <div class="stat-label">Tanggal Backup</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">2</div>
+                    <div class="stat-label">Total File BAK</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">AKTIF</div>
+                    <div class="stat-label">Status Sistem</div>
+                </div>
+            </div>
+
+            <div class="critical-alerts"><div class="alert-number">4</div><div>Item Memerlukan Perhatian Segera</div></div>
+        </div>
+
+        <div class="section">
+            <h2>Detail Analisis File ZIP</h2>
+
+            <div class="file-card">
+                <div class="file-name">BackupStaging 2025-10-04 09;16;30.zip</div>
+                <div class="file-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Tipe Backup:</span>
+                        <span class="detail-value">BackupStaging</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Ukuran File:</span>
+                        <span class="detail-value">266.5 MB</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Status:</span>
+                        <span class="detail-value"><span class="status-badge status-valid">Valid</span></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Terakhir Dimodifikasi:</span>
+                        <span class="detail-value">2025-10-04 09:18</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Usia:</span>
+                        <span class="detail-value">3 hari</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Status Arsip:</span>
+                        <span class="detail-value"><span class="status-badge status-outdated">KADALUARSA</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="file-card">
+                <div class="file-name">BackupVenuz 2025-10-04 10;17;35.zip</div>
+                <div class="file-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Tipe Backup:</span>
+                        <span class="detail-value">BackupVenus</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Ukuran File:</span>
+                        <span class="detail-value">132.8 MB</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Status:</span>
+                        <span class="detail-value"><span class="status-badge status-valid">Valid</span></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Terakhir Dimodifikasi:</span>
+                        <span class="detail-value">2025-10-04 10:20</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Usia:</span>
+                        <span class="detail-value">3 hari</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Status Arsip:</span>
+                        <span class="detail-value"><span class="status-badge status-outdated">KADALUARSA</span></span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="section">
+            <h2>Detail Analisis File BAK</h2>
+
+            <div class="file-card">
+                <div class="file-name">BackupStaging.bak</div>
+                <div class="file-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Tipe Backup:</span>
+                        <span class="detail-value">BackupStaging</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Ukuran File:</span>
+                        <span class="detail-value">2.2 GB (2.23 GB)</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Ukuran Minimum:</span>
+                        <span class="detail-value">2.3 GB</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Perbandingan Ukuran:</span>
+                        <span class="detail-value">2.23 GB vs 2.3 GB (DI BAWAH MINIMUM)</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Validasi Ukuran:</span>
+                        <span class="detail-value"><span class="status-badge status-warning">DI BAWAH MINIMUM</span></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Status Usia:</span>
+                        <span class="detail-value"><span class="status-badge status-outdated">KADALUARSA</span> (3 hari)</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Kemampuan Baca DBATools:</span>
+                        <span class="detail-value"><span class="status-badge status-valid">DAPAT DIBACA</span></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Perbedaan Satu Hari:</span>
+                        <span class="detail-value">TIDAK</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="file-card">
+                <div class="file-name">BackupVenuz.bak</div>
+                <div class="file-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Tipe Backup:</span>
+                        <span class="detail-value">BackupVenus</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Ukuran File:</span>
+                        <span class="detail-value">8.3 GB (8.34 GB)</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Ukuran Minimum:</span>
+                        <span class="detail-value">8.7 GB</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Perbandingan Ukuran:</span>
+                        <span class="detail-value">8.34 GB vs 8.7 GB (DI BAWAH MINIMUM)</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Validasi Ukuran:</span>
+                        <span class="detail-value"><span class="status-badge status-warning">DI BAWAH MINIMUM</span></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Status Usia:</span>
+                        <span class="detail-value"><span class="status-badge status-outdated">KADALUARSA</span> (3 hari)</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Kemampuan Baca DBATools:</span>
+                        <span class="detail-value"><span class="status-badge status-valid">DAPAT DIBACA</span></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Perbedaan Satu Hari:</span>
+                        <span class="detail-value">TIDAK</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="section">
+            <h2>Persyaratan Ukuran Minimum Backup</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <thead>
+                    <tr style="background-color: #f8f9fa;">
+                        <th style="padding: 12px; border: 1px solid #dee2e6; text-align: left;">Tipe Backup</th>
+                        <th style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">Ukuran Minimum</th>
+                        <th style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">BackupStaging</td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">2.3 GB</td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge status-valid">
+                                OK
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">BackupVenus</td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">8.7 GB</td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge status-valid">
+                                OK
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">PlantwareP3</td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">35.0 GB</td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge status-valid">
+                                OK
+                            </span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="recommendations">
+            <h2>Rekomendasi</h2>
+            <ul>
+<li>Periksa file backup yang tidak dimodifikasi hari ini - pastikan proses backup berjalan setiap hari</li><li>Selidiki file di bawah ukuran minimum - potensi backup tidak lengkap</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>Informasi Sistem</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">AKTIF</div>
+                    <div class="stat-label">Pengecualian PlantwareP3</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">TIDAK AKTIF</div>
+                    <div class="stat-label">Pemantauan Real-time</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">Enhanced Backup Monitor v3.0</div>
+                    <div class="stat-label">Versi Sistem</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p><strong>Sistem Monitoring Backup Database</strong></p>
+        <p>Dibuat: 2025-10-07 11:59:45</p>
+        <p>Enhanced Backup Monitor v3.0 - Analisis Real-time dengan 12 Parameter Validasi</p>
+    </div>
+</body>
+</html>
