@@ -168,6 +168,18 @@ class ZipBackupMonitorEnhanced:
         self.bak_text = scrolledtext.ScrolledText(bak_frame, height=15, width=100)
         self.bak_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
+        # ZIP Summary tab
+        zip_summary_frame = ttk.Frame(self.notebook)
+        self.notebook.add(zip_summary_frame, text="ZIP Summary")
+        self.zip_summary_text = scrolledtext.ScrolledText(zip_summary_frame, height=15, width=100)
+        self.zip_summary_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # BAK Summary tab
+        bak_summary_frame = ttk.Frame(self.notebook)
+        self.notebook.add(bak_summary_frame, text="BAK Summary")
+        self.bak_summary_text = scrolledtext.ScrolledText(bak_summary_frame, height=15, width=100)
+        self.bak_summary_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
         # Log tab
         log_frame = ttk.Frame(self.notebook)
         self.notebook.add(log_frame, text="Log")
@@ -509,6 +521,11 @@ class ZipBackupMonitorEnhanced:
                     hours_diff = (current_date - mod_date).total_seconds() / 3600
                     file_analysis['file_date_one_day_different'] = hours_diff <= 24
 
+                    # Log date analysis for debugging
+                    self.logger.info(f"Date analysis for {bak_file.get('filename', 'Unknown')}: "
+                                   f"hours_diff={hours_diff:.1f}, one_day_diff={file_analysis['file_date_one_day_different']}, "
+                                   f"days_since_backup={days_diff}, is_outdated={is_outdated}")
+
                     # Check if file size is below minimum threshold (for warning)
                     min_size_met = self.check_minimum_size(backup_type, file_analysis['size'])
                     file_analysis['size_warning'] = not min_size_met
@@ -819,6 +836,10 @@ class ZipBackupMonitorEnhanced:
 
             # Consider outdated if more than 7 days
             is_outdated = days_diff > 7
+
+            # Log for debugging
+            self.logger.info(f"Backup age check for {os.path.basename(file_path)}: {days_diff} days old, outdated: {is_outdated}")
+
             return is_outdated, days_diff
         except Exception as e:
             self.logger.warning(f"Error checking outdated status for {file_path}: {e}")
@@ -927,55 +948,249 @@ class ZipBackupMonitorEnhanced:
         self.bak_text.insert(tk.END, bak_entry)
 
     def update_summary(self):
-        """Update informasi ringkasan dengan deep analysis"""
-        total_files = len(self.summary_data)
-        valid_files = sum(1 for f in self.summary_data.values() if f['status'] == 'Valid')
-        extracted_files = sum(1 for f in self.summary_data.values() if f['extracted'])
+        """Update informasi ringkasan dengan ZIP dan BAK summaries"""
+        # Generate comprehensive summaries
+        scan_results = {
+            'files': list(self.summary_data.values()),
+            'total_zip_files': len(self.summary_data),
+            'valid_zip_files': sum(1 for f in self.summary_data.values() if f.get('status') == 'Valid'),
+            'corrupted_zip_files': sum(1 for f in self.summary_data.values() if f.get('status') == 'Corrupted')
+        }
 
-        # Calculate compression info
-        total_compressed = sum(f.get('compressed_size', 0) for f in self.summary_data.values())
-        total_uncompressed = sum(f.get('uncompressed_size', 0) for f in self.summary_data.values())
-        avg_compression = (total_compressed / total_uncompressed * 100) if total_uncompressed > 0 else 0
-
-        # Deep analysis statistics
-        total_bak_files = sum(f.get('deep_parameters', {}).get('bak_file_count', 0) for f in self.summary_data.values())
-        dbatools_status_count = {}
-        for f in self.summary_data.values():
-            status = f.get('deep_parameters', {}).get('dbatools_status', 'Unknown')
-            dbatools_status_count[status] = dbatools_status_count.get(status, 0) + 1
-
-        one_day_diff_count = sum(1 for f in self.summary_data.values() if f.get('deep_parameters', {}).get('file_date_one_day_different', False))
+        zip_summary = self.generate_zip_summary(scan_results)
+        bak_summary = self.generate_bak_summary(scan_results)
 
         exclude_plantware = self.config.getboolean('MONITORING', 'exclude_plantware', fallback=True)
 
-        summary_text = f"""Laporan Deep Analysis Backup (PlantwareP3 Dikecualikan)
+        summary_text = f"""DEEP ANALYSIS SUMMARY REPORT
 ===============================================================
 
-Total file ZIP: {total_files}
-File ZIP valid: {valid_files}
-File diekstrak: {extracted_files}
-PlantwareP3 dikecualikan: {'Ya' if exclude_plantware else 'Tidak'}
+📁 ZIP SUMMARY
+---------------------------------------------------------------
+Total ZIP Files: {zip_summary['total_zip_files']}
+Valid ZIP Files: {zip_summary['valid_zip_files']}
+Corrupted ZIP Files: {zip_summary['corrupted_zip_files']}
 
-Informasi Kompresi:
-- Total size terkompres: {self.format_size(total_compressed)}
-- Total size asli: {self.format_size(total_uncompressed)}
-- Rata-rata rasio kompresi: {avg_compression:.1f}%
+Total ZIP Size: {zip_summary['total_size_formatted']}
+Average ZIP Size: {zip_summary['average_size_formatted']}
+Largest ZIP: {zip_summary['largest_file']['filename']} ({zip_summary['largest_file']['size_formatted']})
+Smallest ZIP: {zip_summary['smallest_file']['filename']} ({zip_summary['smallest_file']['size_formatted']})
 
-Deep Analysis Parameters:
-- Total BAK files ditemukan: {total_bak_files}
-- File date one day different: {one_day_diff_count}
-- DBATools Status: {dict(dbatools_status_count)}
+Age Distribution:
+- Today: {zip_summary['age_analysis']['today']} files
+- Last 7 days: {zip_summary['age_analysis']['last_7_days']} files
+- Older than 7 days: {zip_summary['age_analysis']['older_than_7_days']} files
 
-DBATools Analysis Results:
+Status Distribution:
+- Valid: {zip_summary['by_status']['valid']} files
+- Corrupted: {zip_summary['by_status']['corrupted']} files
+- Excluded: {zip_summary['by_status']['excluded']} files
+
+🗄️  BAK SUMMARY
+---------------------------------------------------------------
+Total BAK Files: {bak_summary['total_bak_files']}
+Analyzed BAK Files: {bak_summary['analyzed_bak_files']}
+Failed Analysis: {bak_summary['failed_analysis']}
+
+Total BAK Size: {bak_summary['total_bak_size_formatted']}
+Average BAK Size: {bak_summary['average_bak_size_formatted']}
+
+Size Validation:
+- Above minimum: {bak_summary['size_validation']['above_minimum']} files
+- Below minimum: {bak_summary['size_validation']['below_minimum']} files
+
+Age Analysis:
+- Recent 24h: {bak_summary['age_analysis']['recent_24h']} files
+- Last 7 days: {bak_summary['age_analysis']['last_7_days']} files
+- Older than 7 days: {bak_summary['age_analysis']['older_than_7_days']} files
+- Outdated files: {len(bak_summary['age_analysis']['outdated_files'])}
+
+DBATools Analysis:
+- Successful: {bak_summary['dbatools_analysis']['successful']} files
+- Failed: {bak_summary['dbatools_analysis']['failed']} files
+- Not attempted: {bak_summary['dbatools_analysis']['not_attempted']} files
+
+Validation Status:
+- Valid (90%+): {bak_summary['by_validation_status']['valid']} files
+- Warning (70-89%): {bak_summary['by_validation_status']['warning']} files
+- Invalid (<70%): {bak_summary['by_validation_status']['invalid']} files
+- Excluded: {bak_summary['by_validation_status']['excluded']} files
+
+Checklist Performance:
+- Total checklists: {bak_summary['checklist_summary']['total_checklists']}
+- Perfect scores: {bak_summary['checklist_summary']['perfect_scores']}
+- Average score: {bak_summary['checklist_summary']['average_score']:.1f}%
+
+Configuration:
+- PlantwareP3 dikecualikan: {'Ya' if exclude_plantware else 'Tidak'}
+- Deep BAK Analysis: Aktif
+- Size validation: Aktif
+
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
-
-        for status, count in dbatools_status_count.items():
-            summary_text += f"- {status}: {count}\n"
-
-        summary_text += f"\nDibuat: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
 
         self.summary_text.delete(1.0, tk.END)
         self.summary_text.insert(1.0, summary_text)
+
+        # Store summaries for email generation
+        self.zip_summary = zip_summary
+        self.bak_summary = bak_summary
+
+        # Update ZIP Summary tab
+        self.update_zip_summary_tab(zip_summary)
+
+        # Update BAK Summary tab
+        self.update_bak_summary_tab(bak_summary)
+
+    def update_zip_summary_tab(self, zip_summary):
+        """Update ZIP Summary tab dengan detailed analysis"""
+        zip_summary_text = f"""📁 ZIP SUMMARY - DETAILED ANALYSIS
+===============================================================
+
+BASIC STATISTICS
+---------------------------------------------------------------
+Total ZIP Files: {zip_summary['total_zip_files']}
+Valid ZIP Files: {zip_summary['valid_zip_files']}
+Corrupted ZIP Files: {zip_summary['corrupted_zip_files']}
+
+SIZE ANALYSIS
+---------------------------------------------------------------
+Total ZIP Size: {zip_summary['total_size_formatted']}
+Average ZIP Size: {zip_summary['average_size_formatted']}
+Largest ZIP: {zip_summary['largest_file']['filename']} ({zip_summary['largest_file']['size_formatted']})
+Smallest ZIP: {zip_summary['smallest_file']['filename']} ({zip_summary['smallest_file']['size_formatted']})
+
+AGE DISTRIBUTION
+---------------------------------------------------------------
+Today: {zip_summary['age_analysis']['today']} files
+Last 7 days: {zip_summary['age_analysis']['last_7_days']} files
+Older than 7 days: {zip_summary['age_analysis']['older_than_7_days']} files
+
+Oldest File: {zip_summary['age_analysis']['oldest_file']['filename']}
+({zip_summary['age_analysis']['oldest_file']['days_ago']} days ago)
+Newest File: {zip_summary['age_analysis']['newest_file']['filename']}
+({zip_summary['age_analysis']['newest_file']['days_ago']} days ago)
+
+STATUS DISTRIBUTION
+---------------------------------------------------------------
+Valid: {zip_summary['by_status']['valid']} files
+Corrupted: {zip_summary['by_status']['corrupted']} files
+Excluded: {zip_summary['by_status']['excluded']} files
+
+BACKUP TYPE BREAKDOWN
+---------------------------------------------------------------
+"""
+
+        for backup_type, type_data in zip_summary['by_type'].items():
+            zip_summary_text += f"""
+{backup_type}:
+- Count: {type_data['count']} files
+- Total Size: {type_data.get('total_size_formatted', 'N/A')}
+- Average Size: {type_data.get('average_size_formatted', 'N/A')}
+"""
+
+        zip_summary_text += f"""
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+===============================================================
+"""
+
+        self.zip_summary_text.delete(1.0, tk.END)
+        self.zip_summary_text.insert(1.0, zip_summary_text)
+
+    def update_bak_summary_tab(self, bak_summary):
+        """Update BAK Summary tab dengan detailed analysis"""
+        bak_summary_text = f"""🗄️  BAK SUMMARY - DETAILED ANALYSIS
+===============================================================
+
+BASIC STATISTICS
+---------------------------------------------------------------
+Total BAK Files: {bak_summary['total_bak_files']}
+Analyzed BAK Files: {bak_summary['analyzed_bak_files']}
+Failed Analysis: {bak_summary['failed_analysis']}
+
+SIZE ANALYSIS
+---------------------------------------------------------------
+Total BAK Size: {bak_summary['total_bak_size_formatted']}
+Average BAK Size: {bak_summary['average_bak_size_formatted']}
+
+SIZE VALIDATION
+---------------------------------------------------------------
+Above Minimum: {bak_summary['size_validation']['above_minimum']} files
+Below Minimum: {bak_summary['size_validation']['below_minimum']} files
+
+SIZE WARNINGS:
+"""
+
+        for warning in bak_summary['size_validation']['size_warnings'][:5]:  # Show first 5 warnings
+            bak_summary_text += f"- {warning['filename']} ({warning['size']}) - {warning['backup_type']}\n"
+
+        bak_summary_text += f"""
+AGE ANALYSIS
+---------------------------------------------------------------
+Recent 24h: {bak_summary['age_analysis']['recent_24h']} files
+Last 7 days: {bak_summary['age_analysis']['last_7_days']} files
+Older than 7 days: {bak_summary['age_analysis']['older_than_7_days']} files
+Outdated Files: {len(bak_summary['age_analysis']['outdated_files'])}
+
+OUTDATED FILES:
+"""
+
+        for outdated in bak_summary['age_analysis']['outdated_files'][:3]:  # Show first 3 outdated files
+            bak_summary_text += f"- {outdated['filename']} ({outdated['days_outdated']} days) - {outdated['backup_type']}\n"
+
+        bak_summary_text += f"""
+DBATOOLS ANALYSIS
+---------------------------------------------------------------
+Successful: {bak_summary['dbatools_analysis']['successful']} files
+Failed: {bak_summary['dbatools_analysis']['failed']} files
+Not Attempted: {bak_summary['dbatools_analysis']['not_attempted']} files
+
+ERRORS (first 3):
+"""
+        for error in bak_summary['dbatools_analysis']['errors'][:3]:
+            bak_summary_text += f"- {error}\n"
+
+        bak_summary_text += f"""
+VALIDATION STATUS
+---------------------------------------------------------------
+Valid (90%+): {bak_summary['by_validation_status']['valid']} files
+Warning (70-89%): {bak_summary['by_validation_status']['warning']} files
+Invalid (<70%): {bak_summary['by_validation_status']['invalid']} files
+Excluded: {bak_summary['by_validation_status']['excluded']} files
+
+CHECKLIST PERFORMANCE
+---------------------------------------------------------------
+Total Checklists: {bak_summary['checklist_summary']['total_checklists']}
+Perfect Scores: {bak_summary['checklist_summary']['perfect_scores']}
+Average Score: {bak_summary['checklist_summary']['average_score']:.1f}%
+
+COMMON FAILURES:
+"""
+        for failure, count in sorted(bak_summary['checklist_summary']['common_failures'].items(),
+                                 key=lambda x: x[1], reverse=True)[:5]:
+            bak_summary_text += f"- {failure}: {count} failures\n"
+
+        bak_summary_text += f"""
+BACKUP TYPE BREAKDOWN
+---------------------------------------------------------------
+"""
+
+        for backup_type, type_data in bak_summary['by_backup_type'].items():
+            bak_summary_text += f"""
+{backup_type}:
+- Count: {type_data['count']} files
+- Total Size: {type_data.get('total_size_formatted', 'N/A')}
+- Average Size: {type_data.get('average_size_formatted', 'N/A')}
+- Size Warnings: {type_data.get('size_warnings', 0)}
+"""
+
+        bak_summary_text += f"""
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+===============================================================
+"""
+
+        self.bak_summary_text.delete(1.0, tk.END)
+        self.bak_summary_text.insert(1.0, bak_summary_text)
 
     def send_test_email(self):
         """Kirim email test"""
@@ -1011,61 +1226,200 @@ DBATools Analysis Results:
             self.update_log(f"Gagal mengirim deep analysis report: {str(e)}")
 
     def generate_deep_analysis_email_template(self) -> str:
-        """Generate template email deep analysis"""
+        """Generate template email deep analysis dengan BAK metadata lengkap"""
         if not self.summary_data:
             return ""
+
+        # Generate summaries if not already generated
+        if not hasattr(self, 'zip_summary') or not hasattr(self, 'bak_summary'):
+            scan_results = {
+                'files': list(self.summary_data.values()),
+                'total_zip_files': len(self.summary_data),
+                'valid_zip_files': sum(1 for f in self.summary_data.values() if f.get('status') == 'Valid'),
+                'corrupted_zip_files': sum(1 for f in self.summary_data.values() if f.get('status') == 'Corrupted')
+            }
+            self.zip_summary = self.generate_zip_summary(scan_results)
+            self.bak_summary = self.generate_bak_summary(scan_results)
 
         total_files = len(self.summary_data)
         valid_files = sum(1 for f in self.summary_data.values() if f['status'] == 'Valid')
         extracted_files = sum(1 for f in self.summary_data.values() if f['extracted'])
 
-        # Deep statistics
-        total_bak_files = sum(f.get('deep_parameters', {}).get('bak_file_count', 0) for f in self.summary_data.values())
-        one_day_diff_count = sum(1 for f in self.summary_data.values() if f.get('deep_parameters', {}).get('file_date_one_day_different', False))
+        # Get current summaries
+        zip_summary = getattr(self, 'zip_summary', {})
+        bak_summary = getattr(self, 'bak_summary', {})
 
-        body = f"""Deep Analysis Backup Report
-==========================
+        body = f"""DEEP ANALYSIS BACKUP REPORT
+===============================================================
 
+📊 EXECUTIVE SUMMARY
+---------------------------------------------------------------
 Waktu Generate: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Total ZIP Files: {total_files}
+Valid ZIP Files: {valid_files}
+Success Rate: {(valid_files/total_files*100):.1f}%
 
-Statistik ZIP Files:
-- Total ZIP Files: {total_files}
-- Valid ZIP Files: {valid_files}
-- Extracted Files: {extracted_files}
-- Success Rate: {(valid_files/total_files*100):.1f}%
+📁 ZIP SUMMARY
+---------------------------------------------------------------
+Total ZIP Size: {zip_summary.get('total_size_formatted', 'N/A')}
+Average ZIP Size: {zip_summary.get('average_size_formatted', 'N/A')}
+Largest ZIP: {zip_summary.get('largest_file', {}).get('filename', 'N/A')} ({zip_summary.get('largest_file', {}).get('size_formatted', 'N/A')})
 
-Deep Analysis Parameters:
-- Total BAK Files Found: {total_bak_files}
-- Files with 1-Day Date Difference: {one_day_diff_count}
+Age Distribution:
+- Today: {zip_summary.get('age_analysis', {}).get('today', 0)} files
+- Last 7 days: {zip_summary.get('age_analysis', {}).get('last_7_days', 0)} files
+- Older than 7 days: {zip_summary.get('age_analysis', {}).get('older_than_7_days', 0)} files
 
-Detail per File:
+🗄️  BAK SUMMARY
+---------------------------------------------------------------
+Total BAK Files: {bak_summary.get('total_bak_files', 0)}
+Analyzed BAK Files: {bak_summary.get('analyzed_bak_files', 0)}
+Total BAK Size: {bak_summary.get('total_bak_size_formatted', 'N/A')}
+Average BAK Size: {bak_summary.get('average_bak_size_formatted', 'N/A')}
+
+Size Validation:
+- Above Minimum: {bak_summary.get('size_validation', {}).get('above_minimum', 0)} files
+- Below Minimum: {bak_summary.get('size_validation', {}).get('below_minimum', 0)} files ⚠️
+
+Age Analysis:
+- Recent 24h: {bak_summary.get('age_analysis', {}).get('recent_24h', 0)} files
+- Last 7 days: {bak_summary.get('age_analysis', {}).get('last_7_days', 0)} files
+- Older than 7 days: {bak_summary.get('age_analysis', {}).get('older_than_7_days', 0)} files
+- Outdated Files: {len(bak_summary.get('age_analysis', {}).get('outdated_files', []))} ⚠️
+
+Validation Status:
+- Valid (90%+): {bak_summary.get('by_validation_status', {}).get('valid', 0)} files ✅
+- Warning (70-89%): {bak_summary.get('by_validation_status', {}).get('warning', 0)} files ⚠️
+- Invalid (<70%): {bak_summary.get('by_validation_status', {}).get('invalid', 0)} files ❌
+
+📋 DETAILED FILE ANALYSIS
+---------------------------------------------------------------
+
 """
 
+        # Detailed analysis per file
         for file_path, file_info in self.summary_data.items():
             filename = os.path.basename(file_path)
             backup_type = file_info.get('backup_type', 'Unknown')
             size = self.format_size(file_info.get('size', 0))
             status = file_info.get('status', 'Unknown')
 
-            deep_params = file_info.get('deep_parameters', {})
-            bak_count = deep_params.get('bak_file_count', 0)
-            dbatools_status = deep_params.get('dbatools_status', 'Unknown')
-            one_day_diff = "Yes" if deep_params.get('file_date_one_day_different', False) else "No"
+            # Get file modification date for outdated calculation
+            try:
+                mod_time = os.path.getmtime(file_path)
+                mod_date = datetime.fromtimestamp(mod_time)
+                current_date = datetime.now()
+                days_diff = (current_date - mod_date).days
+                is_outdated = days_diff > 7
+                outdated_status = "❌ OUTDATED" if is_outdated else "✅ Current"
+            except:
+                days_diff = 0
+                is_outdated = False
+                outdated_status = "❓ Unknown"
 
-            body += f"\n{filename} ({backup_type})\n"
-            body += f"  Size: {size}\n"
-            body += f"  Status: {status}\n"
-            body += f"  BAK Files: {bak_count}\n"
-            body += f"  DBATools Status: {dbatools_status}\n"
-            body += f"  1-Day Difference: {one_day_diff}\n"
+            body += f"""
+📦 {filename} ({backup_type})
+   Size: {size}
+   Status: {status}
+   Modified: {mod_date.strftime('%Y-%m-%d %H:%M') if 'mod_date' in locals() else 'Unknown'}
+   Days Old: {days_diff} days
+   Outdated Status: {outdated_status}
+"""
 
-            # Extracted files info
-            if 'extracted_files' in file_info.get('deep_analysis', {}):
-                extracted_count = len(file_info['deep_analysis']['extracted_files'])
-                readable_count = sum(1 for f in file_info['deep_analysis']['extracted_files'] if f.get('readable', False))
-                body += f"  Extracted Files: {extracted_count} (Readable: {readable_count})\n"
+            # BAK files analysis
+            deep_analysis = file_info.get('deep_analysis', {})
+            extracted_files = deep_analysis.get('extracted_files', [])
 
-        body += f"\n\nEmail ini dihasilkan oleh Enhanced Monitor Backup v3.0"
+            if extracted_files:
+                body += f"   🗄️  BAK Files Found: {len(extracted_files)}\n"
+
+                for bak_file in extracted_files:
+                    if bak_file.get('excluded', False):
+                        continue
+
+                    bak_filename = bak_file.get('filename', 'Unknown')
+                    bak_size = self.format_size(bak_file.get('size', 0))
+                    bak_type = bak_file.get('backup_type', 'Unknown')
+
+                    # Size validation
+                    size_warning = bak_file.get('size_warning', False)
+                    size_status = "⚠️ Below Minimum" if size_warning else "✅ Above Minimum"
+
+                    # Age analysis
+                    is_outdated_bak = bak_file.get('is_outdated', False)
+                    days_since_backup = bak_file.get('days_since_backup', 0)
+                    outdated_status_bak = "❌ Outdated" if is_outdated_bak else "✅ Current"
+
+                    # DBATools status
+                    dbatools_result = bak_file.get('dbatools_analysis', {})
+                    dbatools_status = dbatools_result.get('status', 'Not Analyzed')
+
+                    # Validation checklist
+                    validation_checklist = bak_file.get('validation_checklist', {})
+                    if validation_checklist:
+                        checklist_items = list(validation_checklist.values())
+                        passed_items = sum(1 for item in checklist_items if item.get('status', False))
+                        total_items = len(checklist_items)
+                        success_rate = (passed_items / total_items * 100) if total_items > 0 else 0
+
+                        if success_rate >= 90:
+                            validation_status = "✅ Valid"
+                        elif success_rate >= 70:
+                            validation_status = "⚠️ Warning"
+                        else:
+                            validation_status = "❌ Invalid"
+                    else:
+                        validation_status = "❓ No Validation"
+
+                    body += f"""
+      🔍 {bak_filename}
+         Size: {bak_size}
+         Type: {bak_type}
+         Size Status: {size_status}
+         Age Status: {outdated_status_bak} ({days_since_backup} days)
+         DBATools: {dbatools_status}
+         Validation: {validation_status} ({success_rate:.1f}%)
+"""
+            else:
+                body += "   🔍 No BAK files found or extraction failed\n"
+
+            body += "\n"
+
+        # Size warnings section
+        if bak_summary.get('size_validation', {}).get('size_warnings'):
+            body += f"""
+⚠️  SIZE VALIDATION WARNINGS
+---------------------------------------------------------------
+"""
+            for warning in bak_summary['size_validation']['size_warnings'][:5]:
+                body += f"- {warning['filename']} ({warning['size']}) - {warning['backup_type']} - Below minimum size\n"
+
+        # Outdated files section
+        if bak_summary.get('age_analysis', {}).get('outdated_files'):
+            body += f"""
+❌ OUTDATED BACKUP FILES
+---------------------------------------------------------------
+"""
+            for outdated in bak_summary['age_analysis']['outdated_files'][:3]:
+                body += f"- {outdated['filename']} ({outdated['days_outdated']} days outdated) - {outdated['backup_type']}\n"
+
+        # Common failures section
+        if bak_summary.get('checklist_summary', {}).get('common_failures'):
+            body += f"""
+🔍 COMMON VALIDATION FAILURES
+---------------------------------------------------------------
+"""
+            for failure, count in sorted(bak_summary['checklist_summary']['common_failures'].items(),
+                                     key=lambda x: x[1], reverse=True)[:3]:
+                body += f"- {failure}: {count} failures\n"
+
+        body += f"""
+===============================================================
+📧 Email ini dihasilkan oleh Enhanced Monitor Backup v3.0
+🕐 Waktu Generate: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+💡 Deep Analysis dengan {bak_summary.get('checklist_summary', {}).get('total_checklists', 0)} parameter validation
+===============================================================
+"""
 
         return body
 
@@ -1139,6 +1493,330 @@ Detail per File:
                 return f"{size_bytes:.1f} {unit}"
             size_bytes /= 1024.0
         return f"{size_bytes:.1f} PB"
+
+    def generate_zip_summary(self, scan_results: Dict) -> Dict:
+        """Generate ZIP Summary dengan analisis komprehensif"""
+        zip_summary = {
+            'total_zip_files': scan_results.get('total_zip_files', 0),
+            'valid_zip_files': scan_results.get('valid_zip_files', 0),
+            'corrupted_zip_files': scan_results.get('corrupted_zip_files', 0),
+            'total_size_bytes': 0,
+            'total_size_formatted': '0 MB',
+            'average_size_bytes': 0,
+            'average_size_formatted': '0 MB',
+            'largest_file': None,
+            'smallest_file': None,
+            'by_type': {},
+            'by_status': {
+                'valid': 0,
+                'corrupted': 0,
+                'excluded': 0
+            },
+            'age_analysis': {
+                'today': 0,
+                'last_7_days': 0,
+                'older_than_7_days': 0,
+                'oldest_file': None,
+                'newest_file': None
+            },
+            'validation_summary': {
+                'total_checklist_items': 0,
+                'passed_items': 0,
+                'failed_items': 0,
+                'success_rate': 0.0
+            }
+        }
+
+        # Calculate statistics from files
+        files = scan_results.get('files', [])
+        if not files:
+            return zip_summary
+
+        total_size = 0
+        file_sizes = []
+        current_date = datetime.now()
+
+        for file_info in files:
+            size = file_info.get('size', 0)
+            total_size += size
+            file_sizes.append(size)
+
+            # Track largest and smallest files
+            if zip_summary['largest_file'] is None or size > zip_summary['largest_file']['size']:
+                zip_summary['largest_file'] = {
+                    'filename': file_info.get('filename'),
+                    'size': size,
+                    'size_formatted': self.format_size(size)
+                }
+
+            if zip_summary['smallest_file'] is None or size < zip_summary['smallest_file']['size']:
+                zip_summary['smallest_file'] = {
+                    'filename': file_info.get('filename'),
+                    'size': size,
+                    'size_formatted': self.format_size(size)
+                }
+
+            # Age analysis
+            mod_date = datetime.fromisoformat(file_info.get('modified', '').replace('Z', '+00:00'))
+            days_diff = (current_date - mod_date).days
+
+            if days_diff == 0:
+                zip_summary['age_analysis']['today'] += 1
+            elif days_diff <= 7:
+                zip_summary['age_analysis']['last_7_days'] += 1
+            else:
+                zip_summary['age_analysis']['older_than_7_days'] += 1
+
+            # Track oldest and newest files
+            if zip_summary['age_analysis']['oldest_file'] is None or days_diff > zip_summary['age_analysis']['oldest_file']['days_ago']:
+                zip_summary['age_analysis']['oldest_file'] = {
+                    'filename': file_info.get('filename'),
+                    'modified': file_info.get('modified'),
+                    'days_ago': days_diff
+                }
+
+            if zip_summary['age_analysis']['newest_file'] is None or days_diff < zip_summary['age_analysis']['newest_file']['days_ago']:
+                zip_summary['age_analysis']['newest_file'] = {
+                    'filename': file_info.get('filename'),
+                    'modified': file_info.get('modified'),
+                    'days_ago': days_diff
+                }
+
+            # Status analysis
+            status = file_info.get('status', 'Unknown')
+            if status == 'Valid':
+                zip_summary['by_status']['valid'] += 1
+            elif status == 'Corrupted':
+                zip_summary['by_status']['corrupted'] += 1
+            else:
+                zip_summary['by_status']['excluded'] += 1
+
+            # Type analysis
+            backup_type = file_info.get('backup_type', 'Unknown')
+            if backup_type not in zip_summary['by_type']:
+                zip_summary['by_type'][backup_type] = {
+                    'count': 0,
+                    'total_size': 0,
+                    'average_size': 0
+                }
+            zip_summary['by_type'][backup_type]['count'] += 1
+            zip_summary['by_type'][backup_type]['total_size'] += size
+
+        # Calculate averages
+        zip_summary['total_size_bytes'] = total_size
+        zip_summary['total_size_formatted'] = self.format_size(total_size)
+
+        if file_sizes:
+            zip_summary['average_size_bytes'] = total_size / len(file_sizes)
+            zip_summary['average_size_formatted'] = self.format_size(zip_summary['average_size_bytes'])
+
+        # Calculate type averages
+        for backup_type, type_data in zip_summary['by_type'].items():
+            if type_data['count'] > 0:
+                type_data['average_size'] = type_data['total_size'] / type_data['count']
+                type_data['average_size_formatted'] = self.format_size(type_data['average_size'])
+                type_data['total_size_formatted'] = self.format_size(type_data['total_size'])
+
+        return zip_summary
+
+    def generate_bak_summary(self, scan_results: Dict) -> Dict:
+        """Generate BAK Summary dengan analisis mendalam"""
+        bak_summary = {
+            'total_bak_files': 0,
+            'analyzed_bak_files': 0,
+            'failed_analysis': 0,
+            'total_bak_size_bytes': 0,
+            'total_bak_size_formatted': '0 MB',
+            'average_bak_size_bytes': 0,
+            'average_bak_size_formatted': '0 MB',
+            'by_backup_type': {},
+            'by_validation_status': {
+                'valid': 0,
+                'warning': 0,
+                'invalid': 0,
+                'excluded': 0
+            },
+            'size_validation': {
+                'above_minimum': 0,
+                'below_minimum': 0,
+                'size_warnings': []
+            },
+            'age_analysis': {
+                'recent_24h': 0,
+                'last_7_days': 0,
+                'older_than_7_days': 0,
+                'outdated_files': []
+            },
+            'dbatools_analysis': {
+                'successful': 0,
+                'failed': 0,
+                'not_attempted': 0,
+                'errors': []
+            },
+            'extraction_analysis': {
+                'successful': 0,
+                'failed': 0,
+                'not_attempted': 0
+            },
+            'checklist_summary': {
+                'total_checklists': 0,
+                'perfect_scores': 0,
+                'average_score': 0.0,
+                'common_failures': {}
+            }
+        }
+
+        # Analyze BAK files from deep analysis
+        files = scan_results.get('files', [])
+        total_checklist_items = 0
+        total_checklist_score = 0
+
+        for file_info in files:
+            deep_analysis = file_info.get('deep_analysis', {})
+            extracted_files = deep_analysis.get('extracted_files', [])
+
+            for bak_file in extracted_files:
+                bak_summary['total_bak_files'] += 1
+
+                size = bak_file.get('size', 0)
+                backup_type = bak_file.get('backup_type', 'Unknown')
+
+                # Skip excluded files in main analysis
+                if bak_file.get('excluded', False):
+                    bak_summary['by_validation_status']['excluded'] += 1
+                    continue
+
+                bak_summary['analyzed_bak_files'] += 1
+                bak_summary['total_bak_size_bytes'] += size
+
+                # Type analysis
+                if backup_type not in bak_summary['by_backup_type']:
+                    bak_summary['by_backup_type'][backup_type] = {
+                        'count': 0,
+                        'total_size': 0,
+                        'average_size': 0,
+                        'size_warnings': 0
+                    }
+
+                type_data = bak_summary['by_backup_type'][backup_type]
+                type_data['count'] += 1
+                type_data['total_size'] += size
+
+                # Size validation
+                size_warning = bak_file.get('size_warning', False)
+                if size_warning:
+                    bak_summary['size_validation']['below_minimum'] += 1
+                    type_data['size_warnings'] += 1
+                    bak_summary['size_validation']['size_warnings'].append({
+                        'filename': bak_file.get('filename'),
+                        'backup_type': backup_type,
+                        'size': self.format_size(size),
+                        'path': bak_file.get('path')
+                    })
+                else:
+                    bak_summary['size_validation']['above_minimum'] += 1
+
+                # Age analysis
+                is_outdated = bak_file.get('is_outdated', False)
+                days_since_backup = bak_file.get('days_since_backup', 0)
+                file_date_one_day = bak_file.get('file_date_one_day_different', False)
+
+                if file_date_one_day:
+                    bak_summary['age_analysis']['recent_24h'] += 1
+                elif days_since_backup <= 7:
+                    bak_summary['age_analysis']['last_7_days'] += 1
+                else:
+                    bak_summary['age_analysis']['older_than_7_days'] += 1
+
+                if is_outdated:
+                    bak_summary['age_analysis']['outdated_files'].append({
+                        'filename': bak_file.get('filename'),
+                        'days_outdated': days_since_backup,
+                        'backup_type': backup_type
+                    })
+
+                # DBATools analysis
+                dbatools_result = bak_file.get('dbatools_analysis', {})
+                if dbatools_result:
+                    if dbatools_result.get('status') == 'Analyzed':
+                        bak_summary['dbatools_analysis']['successful'] += 1
+                    else:
+                        bak_summary['dbatools_analysis']['failed'] += 1
+                        if 'errors' in dbatools_result:
+                            bak_summary['dbatools_analysis']['errors'].extend(
+                                dbatools_result['errors'][:3]  # Limit to first 3 errors
+                            )
+                else:
+                    bak_summary['dbatools_analysis']['not_attempted'] += 1
+
+                # Extraction analysis
+                if deep_analysis.get('extraction_successful', False):
+                    bak_summary['extraction_analysis']['successful'] += 1
+                else:
+                    bak_summary['extraction_analysis']['failed'] += 1
+
+                # Validation checklist analysis
+                validation_checklist = bak_file.get('validation_checklist', {})
+                if validation_checklist:
+                    bak_summary['checklist_summary']['total_checklists'] += 1
+
+                    checklist_items = list(validation_checklist.values())
+                    passed_items = sum(1 for item in checklist_items if item.get('status', False))
+                    failed_items = len(checklist_items) - passed_items
+
+                    total_checklist_items += len(checklist_items)
+                    total_checklist_score += passed_items
+
+                    # Track perfect scores
+                    if failed_items == 0:
+                        bak_summary['checklist_summary']['perfect_scores'] += 1
+
+                    # Track common failures
+                    for key, item in validation_checklist.items():
+                        if not item.get('status', False):
+                            if key not in bak_summary['checklist_summary']['common_failures']:
+                                bak_summary['checklist_summary']['common_failures'][key] = 0
+                            bak_summary['checklist_summary']['common_failures'][key] += 1
+
+        # Calculate averages
+        if bak_summary['analyzed_bak_files'] > 0:
+            bak_summary['average_bak_size_bytes'] = bak_summary['total_bak_size_bytes'] / bak_summary['analyzed_bak_files']
+            bak_summary['average_bak_size_formatted'] = self.format_size(bak_summary['average_bak_size_bytes'])
+
+        # Calculate type averages
+        for backup_type, type_data in bak_summary['by_backup_type'].items():
+            if type_data['count'] > 0:
+                type_data['average_size'] = type_data['total_size'] / type_data['count']
+                type_data['average_size_formatted'] = self.format_size(type_data['average_size'])
+                type_data['total_size_formatted'] = self.format_size(type_data['total_size'])
+
+        # Calculate checklist average score
+        if total_checklist_items > 0:
+            bak_summary['checklist_summary']['average_score'] = (total_checklist_score / total_checklist_items) * 100
+
+        # Determine validation status distribution
+        for file_info in files:
+            deep_analysis = file_info.get('deep_analysis', {})
+            extracted_files = deep_analysis.get('extracted_files', [])
+
+            for bak_file in extracted_files:
+                if bak_file.get('excluded', False):
+                    continue
+
+                validation_checklist = bak_file.get('validation_checklist', {})
+                if validation_checklist:
+                    checklist_items = list(validation_checklist.values())
+                    passed_items = sum(1 for item in checklist_items if item.get('status', False))
+                    success_rate = (passed_items / len(checklist_items)) * 100
+
+                    if success_rate >= 90:
+                        bak_summary['by_validation_status']['valid'] += 1
+                    elif success_rate >= 70:
+                        bak_summary['by_validation_status']['warning'] += 1
+                    else:
+                        bak_summary['by_validation_status']['invalid'] += 1
+
+        return bak_summary
 
 def main():
     root = tk.Tk()

@@ -1,0 +1,93 @@
+
+===============================================================
+BACKUPSTAGING.BAK COMPREHENSIVE ANALYSIS REPORT
+===============================================================
+
+FILE INFORMATION
+---------------------------------------------------------------
+Path: D:\Gawean Rebinmas\App_Auto_Backup\Backup\BackupStaging.bak
+Size: 2287.54 MB (2.23 GB)
+Last Modified: 2025-10-07T09:53:32.526526
+File Exists: True
+
+BACKUP HEADER INFORMATION
+---------------------------------------------------------------
+Backup Name: staging_PTRJ_iFES_Plantware_backup_2025_10_04_090001_4169847
+Database Name: NULL
+Server Name: 0
+Machine Name: 1
+Backup Type: Unknown (0)
+Backup Start: None
+Backup Finish: None
+Database Version: 2398648320
+Collation: 2025-10-04 09:00:10.000
+Recovery Model: Unknown (0)
+
+Backup Size: 0 bytes
+Compressed Size: 0 bytes
+
+LSN Information:
+- First LSN: 2047
+- Last LSN: PLANTWAREP3
+- Checkpoint LSN: 512
+- Database Backup LSN: 7E4F1A25-9C4C-46C5-B9EB-C3F100A68D1A
+
+FILE LIST
+---------------------------------------------------------------
+
+File 1: staging_PTRJ_iFES_Plantware
+  Type: D
+  Group: PRIMARY
+  Size: 2312.00 MB
+  Physical Name: D:\iFES_PTRJ_StagingDB\staging_PTRJ_iFES_Plantware.mdf
+
+File 2: staging_PTRJ_iFES_Plantware_log
+  Type: L
+  Group: NULL
+  Size: 28099.94 MB
+  Physical Name: D:\iFES_PTRJ_StagingDB\staging_PTRJ_iFES_Plantware_log.ldf
+
+DATABASE SIZE ESTIMATION
+---------------------------------------------------------------
+Total Database Size: 30411.94 MB
+Data Size: 2312.00 MB
+Log Size: 28099.94 MB
+File Count: 2
+
+TABLE ESTIMATION
+---------------------------------------------------------------
+Estimated Table Count: 1520
+Estimated Total Records: 30,411,937
+
+Table Types:
+- User Tables: 1064
+- System Tables: 304
+- Temp Tables: 152
+
+Top 5 Largest Tables (Estimated):
+- Table_1: 50.02 MB
+- Table_2: 60.02 MB
+- Table_3: 70.03 MB
+- Table_4: 80.03 MB
+- Table_5: 90.04 MB
+
+COMPRESSION ANALYSIS
+---------------------------------------------------------------
+Compression Ratio: 7.5%
+Space Saved: 28124.40 MB
+Space Saved Percentage: 92.5%
+
+ANALYSIS SUMMARY
+---------------------------------------------------------------
+Analysis Generated: 2025-10-07T09:54:07.854894
+Backup Duration: 0.00 seconds
+Contains Tables: True
+Password Protected: False
+Has Bulk Logged Data: False
+Is Snapshot: False
+Is Read Only: False
+Has Incomplete Metadata: False
+
+===============================================================
+Report Complete - 2025-10-07 09:54:07
+===============================================================

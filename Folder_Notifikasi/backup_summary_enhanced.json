@@ -4,7 +4,7 @@
     "size": 279438828,
     "modified": "2025-10-04T09:18:44.648100",
     "status": "Valid",
-    "extracted": true,
+    "extracted": false,
     "bak_files": [
       {
         "filename": "BackupStaging.bak",
@@ -20,88 +20,10 @@
     "corrupt": false,
     "backup_type": "BackupStaging",
     "deep_analysis": {
-      "extracted_files": [
-        {
-          "filename": "BackupStaging.bak",
-          "path": "D:/Gawean Rebinmas/App_Auto_Backup/Backup\\BackupStaging.bak",
-          "size": 2398658048,
-          "extension": ".bak",
-          "backup_type": "BackupStaging",
-          "exists": true,
-          "readable": true,
-          "dbatools_analysis": {
-            "status": "Analyzed",
-            "file_size": 2398658048,
-            "file_size_formatted": "2.2 GB",
-            "readable": true,
-            "backup_type": "BackupStaging",
-            "analysis_timestamp": "2025-10-07T09:37:39.928486",
-            "dbatools_version": "Simulated v1.0",
-            "warnings": [],
-            "errors": [],
-            "header_analysis": "Valid backup header detected"
-          },
-          "sql_analysis": {
-            "status": "SQL Analysis Complete",
-            "backup_type": "BackupStaging",
-            "database_name": "",
-            "backup_date": "CompressionAlgorithm",
-            "backup_size": 0,
-            "position": 0,
-            "warnings": []
-          },
-          "validation_checklist": {
-            "file_ada_dan_dapat_diakses": {
-              "status": true,
-              "keterangan": "File BAK ada dan dapat diakses",
-              "hasil": "[VALID]"
-            },
-            "ukuran_file_wajar": {
-              "status": true,
-              "keterangan": "Ukuran file BAK wajar (>10KB)",
-              "hasil": "[VALID]"
-            },
-            "dbatools_dapat_membaca": {
-              "status": true,
-              "keterangan": "DBATools dapat membaca .bak file",
-              "hasil": "[VALID]"
-            },
-            "sql_server_dapat_membaca": {
-              "status": true,
-              "keterangan": "SQL Server dapat membaca .bak file",
-              "hasil": "[VALID]"
-            },
-            "bisa_diekstrak_dari_zip": {
-              "status": true,
-              "keterangan": "File dapat diekstrak dari ZIP",
-              "hasil": "[VALID]"
-            },
-            "tanggal_backup_masuk_akal": {
-              "status": true,
-              "keterangan": "Tanggal backup masuk akal",
-              "hasil": "[VALID]"
-            },
-            "ukuran_minimum_backup": {
-              "status": false,
-              "keterangan": "Ukuran minimum BackupStaging",
-              "hasil": "[GAGAL]"
-            },
-            "format_backup_valid": {
-              "status": true,
-              "keterangan": "Format backup database valid",
-              "hasil": "[VALID]"
-            },
-            "tidak_corrupt": {
-              "status": true,
-              "keterangan": "File BAK tidak corrupt",
-              "hasil": "[VALID]"
-            }
-          }
-        }
-      ],
-      "extraction_successful": true,
-      "dbatools_status": "All Files Readable",
-      "can_be_extracted": true
+      "extraction_successful": false,
+      "extraction_error": "name 'bak_file' is not defined",
+      "can_be_extracted": false,
+      "dbatools_status": "Extraction Failed"
     },
     "file_count": 1,
     "uncompressed_size": 2398658048,
@@ -154,7 +76,7 @@
     "size": 139243531,
     "modified": "2025-10-04T10:20:14.047731",
     "status": "Valid",
-    "extracted": true,
+    "extracted": false,
     "bak_files": [
       {
         "filename": "BackupVenuz.bak",
@@ -170,88 +92,10 @@
     "corrupt": false,
     "backup_type": "BackupVenus",
     "deep_analysis": {
-      "extracted_files": [
-        {
-          "filename": "BackupVenuz.bak",
-          "path": "D:/Gawean Rebinmas/App_Auto_Backup/Backup\\BackupVenuz.bak",
-          "size": 8950869504,
-          "extension": ".bak",
-          "backup_type": "BackupVenus",
-          "exists": true,
-          "readable": true,
-          "dbatools_analysis": {
-            "status": "Analyzed",
-            "file_size": 8950869504,
-            "file_size_formatted": "8.3 GB",
-            "readable": true,
-            "backup_type": "BackupVenus",
-            "analysis_timestamp": "2025-10-07T09:38:50.071644",
-            "dbatools_version": "Simulated v1.0",
-            "warnings": [],
-            "errors": [],
-            "header_analysis": "Valid backup header detected"
-          },
-          "sql_analysis": {
-            "status": "SQL Analysis Complete",
-            "backup_type": "BackupVenus",
-            "database_name": "",
-            "backup_date": "CompressionAlgorithm",
-            "backup_size": 0,
-            "position": 0,
-            "warnings": []
-          },
-          "validation_checklist": {
-            "file_ada_dan_dapat_diakses": {
-              "status": true,
-              "keterangan": "File BAK ada dan dapat diakses",
-              "hasil": "[VALID]"
-            },
-            "ukuran_file_wajar": {
-              "status": true,
-              "keterangan": "Ukuran file BAK wajar (>10KB)",
-              "hasil": "[VALID]"
-            },
-            "dbatools_dapat_membaca": {
-              "status": true,
-              "keterangan": "DBATools dapat membaca .bak file",
-              "hasil": "[VALID]"
-            },
-            "sql_server_dapat_membaca": {
-              "status": true,
-              "keterangan": "SQL Server dapat membaca .bak file",
-              "hasil": "[VALID]"
-            },
-            "bisa_diekstrak_dari_zip": {
-              "status": true,
-              "keterangan": "File dapat diekstrak dari ZIP",
-              "hasil": "[VALID]"
-            },
-            "tanggal_backup_masuk_akal": {
-              "status": true,
-              "keterangan": "Tanggal backup masuk akal",
-              "hasil": "[VALID]"
-            },
-            "ukuran_minimum_backup": {
-              "status": false,
-              "keterangan": "Ukuran minimum BackupVenus",
-              "hasil": "[GAGAL]"
-            },
-            "format_backup_valid": {
-              "status": true,
-              "keterangan": "Format backup database valid",
-              "hasil": "[VALID]"
-            },
-            "tidak_corrupt": {
-              "status": true,
-              "keterangan": "File BAK tidak corrupt",
-              "hasil": "[VALID]"
-            }
-          }
-        }
-      ],
-      "extraction_successful": true,
-      "dbatools_status": "All Files Readable",
-      "can_be_extracted": true
+      "extraction_successful": false,
+      "extraction_error": "name 'bak_file' is not defined",
+      "can_be_extracted": false,
+      "dbatools_status": "Extraction Failed"
     },
     "file_count": 1,
     "uncompressed_size": 8950869504,
