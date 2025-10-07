@@ -85,9 +85,9 @@ class ZipBackupMonitorEnhanced:
             'max_age_days': '7',
             'extract_files': 'true',
             'exclude_plantware': 'true',
-            'min_size_staging': '2473901824',
-            'min_size_venus': '9342988800',
-            'min_size_plantware': '37580963840'
+            'min_size_staging': '2473901824',  # 2.3 GB
+            'min_size_venus': '9342988800',     # 8.7 GB
+            'min_size_plantware': '37580963840' # 35 GB
         }
 
         self.config['ANALYSIS'] = {
@@ -497,6 +497,22 @@ class ZipBackupMonitorEnhanced:
                         sql_result = self.analyze_with_sql_server(extracted_path, backup_type)
                         file_analysis['sql_analysis'] = sql_result
 
+                    # Check date analysis
+                    is_outdated, days_diff = self.check_backup_outdated(zip_path)
+                    file_analysis['is_outdated'] = is_outdated
+                    file_analysis['days_since_backup'] = days_diff
+
+                    # Check if file date is one day different (modified within 24 hours)
+                    mod_time = os.path.getmtime(zip_path)
+                    mod_date = datetime.fromtimestamp(mod_time)
+                    current_date = datetime.now()
+                    hours_diff = (current_date - mod_date).total_seconds() / 3600
+                    file_analysis['file_date_one_day_different'] = hours_diff <= 24
+
+                    # Check if file size is below minimum threshold (for warning)
+                    min_size_met = self.check_minimum_size(backup_type, file_analysis['size'])
+                    file_analysis['size_warning'] = not min_size_met
+
                     # Generate validation checklist
                     file_analysis['validation_checklist'] = self.generate_bak_validation_checklist(
                         extracted_path, backup_type, file_analysis
@@ -762,6 +778,21 @@ class ZipBackupMonitorEnhanced:
                 'status': len(analysis.get('dbatools_analysis', {}).get('errors', [])) == 0,
                 'keterangan': 'File BAK tidak corrupt',
                 'hasil': '[VALID]' if len(analysis.get('dbatools_analysis', {}).get('errors', [])) == 0 else '[GAGAL]'
+            },
+            'backup_tidak_outdated': {
+                'status': not analysis.get('is_outdated', False),
+                'keterangan': 'Backup tidak outdated (< 7 hari)',
+                'hasil': '[VALID]' if not analysis.get('is_outdated', False) else '[GAGAL - OUTDATED]'
+            },
+            'file_date_recent': {
+                'status': analysis.get('file_date_one_day_different', False),
+                'keterangan': 'File date dalam 24 jam terakhir',
+                'hasil': '[VALID]' if analysis.get('file_date_one_day_different', False) else '[INFO]'
+            },
+            'size_minimum_terpenuhi': {
+                'status': not analysis.get('size_warning', True),
+                'keterangan': 'Size minimum terpenuhi',
+                'hasil': '[VALID]' if not analysis.get('size_warning', True) else '[WARNING - SIZE]'
             }
         }
 
@@ -777,6 +808,21 @@ class ZipBackupMonitorEnhanced:
 
         min_size = min_sizes.get(backup_type, 1073741824)  # Default 1GB
         return size >= min_size
+
+    def check_backup_outdated(self, file_path: str) -> Tuple[bool, int]:
+        """Check if backup is outdated compared to current date"""
+        try:
+            mod_time = os.path.getmtime(file_path)
+            mod_date = datetime.fromtimestamp(mod_time)
+            current_date = datetime.now()
+            days_diff = (current_date - mod_date).days
+
+            # Consider outdated if more than 7 days
+            is_outdated = days_diff > 7
+            return is_outdated, days_diff
+        except Exception as e:
+            self.logger.warning(f"Error checking outdated status for {file_path}: {e}")
+            return False, 0
 
     def detect_backup_type(self, file_path: str) -> str:
         """Deteksi jenis backup dari nama file ZIP"""
