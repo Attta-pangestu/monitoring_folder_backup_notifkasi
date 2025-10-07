@@ -445,12 +445,20 @@ class ZipBackupMonitorEnhanced:
                     'all_files_count': len(analysis['bak_files'])
                 }
 
+                # Check if backup is outdated
+                is_outdated, days_diff = self.check_backup_outdated(file_path)
+                analysis['is_outdated'] = is_outdated
+                analysis['days_difference'] = days_diff
+
                 # Generate ZIP checklist
                 analysis['zip_checklist'] = self.generate_enhanced_zip_checklist(file_path, analysis)
 
         except Exception as e:
             analysis['corrupt'] = True
             analysis['status'] = f'Error: {str(e)}'
+            # Set default values for error cases
+            analysis['is_outdated'] = True  # Assume outdated if error
+            analysis['days_difference'] = 999
 
         return analysis
 
@@ -1193,9 +1201,11 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         self.bak_summary_text.insert(1.0, bak_summary_text)
 
     def send_test_email(self):
-        """Kirim email test"""
+        """Kirim email test dengan enhanced subject"""
         try:
-            subject = "[VALID] Enhanced Monitor Backup - Email Test"
+            # Get overall backup status for subject
+            backup_status = self.get_overall_backup_status()
+            subject = f"[VALID | {backup_status}] Enhanced Monitor Backup - Email Test"
             body = "Ini adalah email test dari Enhanced Monitor Backup.\n\nWaktu pengiriman: " + datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
             self.send_email(subject, body)
@@ -1206,6 +1216,35 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             messagebox.showerror("Error", f"Gagal mengirim email test: {str(e)}")
             self.update_log(f"Gagal mengirim email test: {str(e)}")
 
+    def get_overall_backup_status(self) -> str:
+        """Determine overall backup status (Outdated/Updated) based on all files"""
+        try:
+            if not self.summary_data:
+                return "Updated"
+            
+            # Check if any backup files are outdated
+            has_outdated = False
+            for file_info in self.summary_data.values():
+                # Check ZIP file outdated status
+                if file_info.get('is_outdated', False):
+                    has_outdated = True
+                    break
+                
+                # Check BAK files within ZIP
+                bak_files = file_info.get('bak_files', [])
+                for bak_file in bak_files:
+                    if bak_file.get('is_outdated', False):
+                        has_outdated = True
+                        break
+                
+                if has_outdated:
+                    break
+            
+            return "Outdated" if has_outdated else "Updated"
+        except Exception as e:
+            self.logger.warning(f"Error determining backup status: {e}")
+            return "Updated"
+
     def send_deep_analysis_email(self):
         """Kirim email deep analysis report"""
         try:
@@ -1214,7 +1253,9 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 messagebox.showwarning("Warning", "Tidak ada data deep analysis untuk dikirim")
                 return
 
-            subject = f"[VALID] Deep Analysis Report - {datetime.now().strftime('%Y-%m-%d')}"
+            # Get overall backup status for subject
+            backup_status = self.get_overall_backup_status()
+            subject = f"[VALID | {backup_status}] Deep Analysis Report - {datetime.now().strftime('%Y-%m-%d')}"
             body = self.generate_deep_analysis_email_template()
 
             self.send_email(subject, body)
@@ -1628,12 +1669,14 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
             <div style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 6px; border-left: 4px solid #007bff;">
                 <h4 style="margin-top: 0; color: #007bff;">📄 Informasi File Backup</h4>
-                <div style="color: #6c757d;">
-                    <p style="margin: 5px 0;"><strong>File ZIP Dianalisis:</strong></p>
-                    <ul style="margin: 5px 0; padding-left: 20px;">
+                
+                <!-- Tanggal Backup Section - More Prominent -->
+                <div style="background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2196f3;">
+                    <h5 style="margin: 0 0 10px 0; color: #1976d2; font-size: 16px;">📅 TANGGAL BACKUP (Berdasarkan Date Modified File)</h5>
+                    <div style="display: grid; gap: 8px;">
 """
 
-        # Add ZIP file information
+        # Add ZIP file information with prominent backup dates
         for file_path, file_info in self.summary_data.items():
             filename = os.path.basename(file_path)
             modified_time = file_info.get('modified_time', 'Unknown')
@@ -1646,9 +1689,36 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             days_diff = (datetime.now() - modified_time).days if isinstance(modified_time, datetime) else 0
             backup_type = file_info.get('backup_type', 'Unknown')
             status = file_info.get('status', 'Unknown')
+            
+            # Format tanggal backup dengan lebih menonjol
+            backup_date_formatted = modified_time.strftime('%d %B %Y, %H:%M:%S') if isinstance(modified_time, datetime) else modified_time
+            age_color = '#d32f2f' if days_diff > 7 else '#388e3c' if days_diff <= 1 else '#f57c00'
 
             body += f"""
-                        <li><strong>{filename}</strong> ({backup_type}) - Modified: {modified_time.strftime('%Y-%m-%d %H:%M:%S') if isinstance(modified_time, datetime) else modified_time} ({days_diff} hari yang lalu) - Status: {status}</li>
+                        <div style="background: white; padding: 10px; border-radius: 6px; border: 1px solid #e0e0e0;">
+                            <div style="font-weight: bold; color: #1976d2; margin-bottom: 4px;">{filename}</div>
+                            <div style="color: {age_color}; font-weight: bold; font-size: 14px;">🗓️ Tanggal Backup: {backup_date_formatted}</div>
+                            <div style="color: #666; font-size: 12px;">Tipe: {backup_type} | Usia: {days_diff} hari | Status: {status}</div>
+                        </div>
+"""
+
+        body += f"""
+                    </div>
+                </div>
+                
+                <div style="color: #6c757d;">
+                    <p style="margin: 5px 0;"><strong>File ZIP Dianalisis:</strong></p>
+                    <ul style="margin: 5px 0; padding-left: 20px;">
+"""
+
+        # Add simplified ZIP file list
+        for file_path, file_info in self.summary_data.items():
+            filename = os.path.basename(file_path)
+            backup_type = file_info.get('backup_type', 'Unknown')
+            status = file_info.get('status', 'Unknown')
+
+            body += f"""
+                        <li><strong>{filename}</strong> ({backup_type}) - Status: {status}</li>
 """
 
         body += f"""
@@ -1659,7 +1729,11 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         if hasattr(self, 'bak_summary') and self.bak_summary.get('bak_files'):
             body += f"""
                     <p style="margin: 15px 0 5px 0;"><strong>File BAK Dianalisis:</strong></p>
-                    <ul style="margin: 5px 0; padding-left: 20px;">
+                    
+                    <!-- BAK Backup Dates Section -->
+                    <div style="background: linear-gradient(135deg, #fff3e0 0%, #fce4ec 100%); padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #ff9800;">
+                        <h6 style="margin: 0 0 10px 0; color: #f57c00; font-size: 14px;">📅 TANGGAL BACKUP BAK FILES</h6>
+                        <div style="display: grid; gap: 6px;">
 """
 
             for bak_file in self.bak_summary.get('bak_files', []):
@@ -1675,9 +1749,34 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
                 bak_days_diff = (datetime.now() - bak_modified).days if isinstance(bak_modified, datetime) else 0
                 is_outdated = bak_file.get('is_outdated', False)
+                
+                # Format tanggal backup BAK dengan lebih menonjol
+                bak_backup_date_formatted = bak_modified.strftime('%d %B %Y, %H:%M:%S') if isinstance(bak_modified, datetime) else bak_modified
+                bak_age_color = '#d32f2f' if bak_days_diff > 7 else '#388e3c' if bak_days_diff <= 1 else '#f57c00'
 
                 body += f"""
-                        <li><strong>{bak_filename}</strong> ({bak_type}) - Modified: {bak_modified.strftime('%Y-%m-%d %H:%M:%S') if isinstance(bak_modified, datetime) else bak_modified} ({bak_days_diff} hari yang lalu) - Status: {'KADALUARSA' if is_outdated else 'MASIH BERLAKU'}</li>
+                            <div style="background: white; padding: 8px; border-radius: 4px; border: 1px solid #e0e0e0;">
+                                <div style="font-weight: bold; color: #f57c00; margin-bottom: 2px; font-size: 13px;">{bak_filename}</div>
+                                <div style="color: {bak_age_color}; font-weight: bold; font-size: 12px;">🗓️ Tanggal Backup: {bak_backup_date_formatted}</div>
+                                <div style="color: #666; font-size: 11px;">Tipe: {bak_type} | Usia: {bak_days_diff} hari | Status: {'KADALUARSA' if is_outdated else 'MASIH BERLAKU'}</div>
+                            </div>
+"""
+
+            body += f"""
+                        </div>
+                    </div>
+                    
+                    <ul style="margin: 5px 0; padding-left: 20px;">
+"""
+
+            # Add simplified BAK file list
+            for bak_file in self.bak_summary.get('bak_files', []):
+                bak_filename = bak_file.get('filename', 'Unknown')
+                bak_type = bak_file.get('backup_type', 'Unknown')
+                is_outdated = bak_file.get('is_outdated', False)
+
+                body += f"""
+                        <li><strong>{bak_filename}</strong> ({bak_type}) - Status: {'KADALUARSA' if is_outdated else 'MASIH BERLAKU'}</li>
 """
 
             body += f"""
@@ -1868,11 +1967,18 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     <div class="detail-item">
                         <span class="detail-label">Status Usia:</span>
                         <span class="detail-value"><span class="status-badge {age_class}">{outdated_status_bak}</span> ({days_since_backup} hari)</span>
-                    </div>
+                    </div>"""
+
+                    # Only show extraction capability if the file CAN be extracted
+                    # Hide redundant "TIDAK DAPAT DIBACA" status as requested
+                    if can_be_extracted:
+                        body += f"""
                     <div class="detail-item">
                         <span class="detail-label">Kemampuan Ekstraksi:</span>
                         <span class="detail-value"><span class="status-badge {extraction_class}">{extraction_status}</span></span>
-                    </div>
+                    </div>"""
+
+                    body += f"""
                     <div class="detail-item">
                         <span class="detail-label">Kemampuan Baca DBATools:</span>
                         <span class="detail-value"><span class="status-badge {dbatools_class}">{dbatools_status}</span></span>
