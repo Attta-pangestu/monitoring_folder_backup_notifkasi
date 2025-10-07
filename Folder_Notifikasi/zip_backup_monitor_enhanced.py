@@ -1260,221 +1260,250 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Laporan Analisis Backup Database</title>
     <style>
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-            color: #333;
+        @media screen {{
+            body {{
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background-color: #f8f9fa;
+                color: #333;
+                line-height: 1.6;
+            }}
+            .container {{
+                max-width: 1000px;
+                margin: 0 auto;
+                background-color: white;
+                border: 1px solid #dee2e6;
+                border-radius: 8px;
+                box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            }}
+            .header {{
+                background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+                color: white;
+                padding: 25px;
+                text-align: center;
+                border-radius: 8px 8px 0 0;
+            }}
+            .header h1 {{
+                margin: 0;
+                font-size: 24px;
+                font-weight: 600;
+                letter-spacing: 0.5px;
+            }}
+            .header p {{
+                margin: 8px 0 0 0;
+                opacity: 0.9;
+                font-size: 14px;
+            }}
+            .section {{
+                margin: 25px;
+                padding: 20px;
+                border-radius: 6px;
+                border-left: 4px solid #2c3e50;
+                background-color: #ffffff;
+                border: 1px solid #e9ecef;
+            }}
+            .section h2 {{
+                color: #2c3e50;
+                margin-top: 0;
+                font-size: 18px;
+                font-weight: 600;
+                border-bottom: 2px solid #e9ecef;
+                padding-bottom: 8px;
+                margin-bottom: 20px;
+            }}
+            .executive-summary {{
+                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                border-left-color: #007bff;
+                border-top: 3px solid #007bff;
+            }}
+            .executive-summary h2 {{
+                color: #007bff;
+            }}
+            .file-card {{
+                background-color: #ffffff;
+                border: 1px solid #dee2e6;
+                border-radius: 4px;
+                padding: 15px;
+                margin: 12px 0;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            }}
+            .file-name {{
+                font-weight: 600;
+                color: #2c3e50;
+                font-size: 16px;
+                margin-bottom: 10px;
+                border-bottom: 1px solid #e9ecef;
+                padding-bottom: 5px;
+            }}
+            .file-details {{
+                font-size: 13px;
+            }}
+            .detail-row {{
+                display: flex;
+                justify-content: space-between;
+                margin: 4px 0;
+                padding: 2px 0;
+            }}
+            .detail-label {{
+                color: #6c757d;
+                font-weight: 500;
+            }}
+            .detail-value {{
+                font-weight: 600;
+                color: #2c3e50;
+            }}
+            .status-badge {{
+                padding: 3px 8px;
+                border-radius: 3px;
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }}
+            .status-valid {{
+                background-color: #d4edda;
+                color: #155724;
+                border: 1px solid #c3e6cb;
+            }}
+            .status-warning {{
+                background-color: #fff3cd;
+                color: #856404;
+                border: 1px solid #ffeaa7;
+            }}
+            .status-invalid {{
+                background-color: #f8d7da;
+                color: #721c24;
+                border: 1px solid #f5c6cb;
+            }}
+            .status-outdated {{
+                background-color: #f8d7da;
+                color: #721c24;
+                border: 1px solid #f5c6cb;
+            }}
+            .status-current {{
+                background-color: #d4edda;
+                color: #155724;
+                border: 1px solid #c3e6cb;
+            }}
+            .stats-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+                margin: 20px 0;
+            }}
+            .stat-card {{
+                background-color: #ffffff;
+                padding: 15px;
+                border-radius: 6px;
+                border: 1px solid #dee2e6;
+                text-align: center;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            }}
+            .stat-number {{
+                font-size: 20px;
+                font-weight: 700;
+                color: #007bff;
+                margin-bottom: 5px;
+            }}
+            .stat-label {{
+                color: #6c757d;
+                font-size: 12px;
+                font-weight: 500;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }}
+            .alert-section {{
+                background-color: #fff3cd;
+                border-left-color: #ffc107;
+                border: 1px solid #ffeaa7;
+            }}
+            .alert-section h2 {{
+                color: #856404;
+            }}
+            .recommendations {{
+                background-color: #d4edda;
+                border-left-color: #28a745;
+                border: 1px solid #c3e6cb;
+            }}
+            .recommendations h2 {{
+                color: #155724;
+            }}
+            .recommendations ul {{
+                margin: 15px 0;
+                padding-left: 20px;
+            }}
+            .recommendations li {{
+                margin: 6px 0;
+                line-height: 1.5;
+            }}
+            .footer {{
+                background-color: #2c3e50;
+                color: white;
+                text-align: center;
+                padding: 15px;
+                font-size: 12px;
+            }}
+            .critical-alerts {{
+                background-color: #f8d7da;
+                border: 1px solid #f5c6cb;
+                border-radius: 6px;
+                padding: 15px;
+                margin: 15px 0;
+                text-align: center;
+            }}
+            .critical-alerts .alert-number {{
+                font-size: 20px;
+                font-weight: bold;
+                color: #721c24;
+                margin-bottom: 5px;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 15px 0;
+                background-color: white;
+                border: 1px solid #dee2e6;
+            }}
+            th, td {{
+                border: 1px solid #dee2e6;
+                padding: 10px;
+                text-align: left;
+                font-size: 13px;
+            }}
+            th {{
+                background-color: #f8f9fa;
+                color: #2c3e50;
+                font-weight: 600;
+                border-bottom: 2px solid #dee2e6;
+            }}
+            tr:nth-child(even) {{
+                background-color: #f8f9fa;
+            }}
+            h3 {{
+                color: #2c3e50;
+                font-size: 16px;
+                font-weight: 600;
+                margin: 20px 0 10px 0;
+                border-bottom: 1px solid #e9ecef;
+                padding-bottom: 5px;
+            }}
         }}
-        .container {{
-            max-width: 1200px;
-            margin: 0 auto;
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }}
-        .header {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }}
-        .header h1 {{
-            margin: 0;
-            font-size: 28px;
-            font-weight: 300;
-        }}
-        .header p {{
-            margin: 10px 0 0 0;
-            opacity: 0.9;
-        }}
-        .section {{
-            margin: 30px;
-            padding: 25px;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-            background-color: #fafafa;
-        }}
-        .section h2 {{
-            color: #667eea;
-            margin-top: 0;
-            font-size: 22px;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 10px;
-        }}
-        .executive-summary {{
-            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
-            border-left-color: #ff6b6b;
-        }}
-        .executive-summary h2 {{
-            color: #d63031;
-        }}
-        .status-active {{
-            color: #00b894;
-            font-weight: bold;
-        }}
-        .status-inactive {{
-            color: #d63031;
-            font-weight: bold;
-        }}
-        .status-warning {{
-            color: #fdcb6e;
-            font-weight: bold;
-        }}
-        .file-card {{
-            background-color: white;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 15px;
-            margin: 10px 0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }}
-        .file-name {{
-            font-weight: bold;
-            color: #2d3436;
-            font-size: 16px;
-            margin-bottom: 8px;
-        }}
-        .file-details {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 8px;
-            font-size: 14px;
-        }}
-        .detail-item {{
-            display: flex;
-            justify-content: space-between;
-        }}
-        .detail-label {{
-            color: #636e72;
-        }}
-        .detail-value {{
-            font-weight: 500;
-        }}
-        .status-badge {{
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: bold;
-            text-transform: uppercase;
-        }}
-        .status-valid {{
-            background-color: #d4edda;
-            color: #155724;
-        }}
-        .status-warning {{
-            background-color: #fff3cd;
-            color: #856404;
-        }}
-        .status-invalid {{
-            background-color: #f8d7da;
-            color: #721c24;
-        }}
-        .status-outdated {{
-            background-color: #f8d7da;
-            color: #721c24;
-        }}
-        .status-current {{
-            background-color: #d4edda;
-            color: #155724;
-        }}
-        .stats-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin: 20px 0;
-        }}
-        .stat-card {{
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #ddd;
-            text-align: center;
-        }}
-        .stat-number {{
-            font-size: 24px;
-            font-weight: bold;
-            color: #667eea;
-        }}
-        .stat-label {{
-            color: #636e72;
-            margin-top: 5px;
-        }}
-        .alert-section {{
-            background-color: #fff3cd;
-            border-left-color: #fdcb6e;
-        }}
-        .alert-section h2 {{
-            color: #856404;
-        }}
-        .recommendations {{
-            background-color: #d4edda;
-            border-left-color: #00b894;
-        }}
-        .recommendations h2 {{
-            color: #155724;
-        }}
-        .recommendations ul {{
-            margin: 15px 0;
-            padding-left: 20px;
-        }}
-        .recommendations li {{
-            margin: 8px 0;
-        }}
-        .backup-type-breakdown {{
-            margin: 15px 0;
-        }}
-        .backup-type-item {{
-            background-color: white;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 6px;
-            border: 1px solid #ddd;
-        }}
-        .backup-type-name {{
-            font-weight: bold;
-            color: #2d3436;
-            margin-bottom: 10px;
-        }}
-        .footer {{
-            background-color: #2d3436;
-            color: white;
-            text-align: center;
-            padding: 20px;
-            margin-top: 30px;
-        }}
-        .critical-alerts {{
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            border-radius: 6px;
-            padding: 15px;
-            margin: 15px 0;
-            text-align: center;
-        }}
-        .critical-alerts .alert-number {{
-            font-size: 24px;
-            font-weight: bold;
-            color: #721c24;
-        }}
-        table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin: 15px 0;
-            background-color: white;
-        }}
-        th, td {{
-            border: 1px solid #ddd;
-            padding: 12px;
-            text-align: left;
-        }}
-        th {{
-            background-color: #667eea;
-            color: white;
-        }}
-        tr:nth-child(even) {{
-            background-color: #f8f9fa;
+
+        /* Print-friendly styles */
+        @media print {{
+            body {{
+                background-color: white;
+                font-family: Arial, sans-serif;
+            }}
+            .container {{
+                box-shadow: none;
+                border: 1px solid #ccc;
+            }}
+            .header {{
+                background: #2c3e50 !important;
+                -webkit-print-color-adjust: exact;
+            }}
         }}
     </style>
 </head>
@@ -1860,8 +1889,81 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
         return body
 
+    def generate_plain_text_version(self) -> str:
+        """Generate plain text version dari HTML email untuk fallback"""
+        if not self.summary_data:
+            return "Tidak ada data deep analysis untuk ditampilkan"
+
+        total_files = len(self.summary_data)
+        valid_files = sum(1 for f in self.summary_data.values() if f['status'] == 'Valid')
+
+        if hasattr(self, 'bak_summary'):
+            bak_summary = self.bak_summary
+        else:
+            scan_results = {
+                'files': list(self.summary_data.values()),
+                'total_zip_files': len(self.summary_data),
+                'valid_zip_files': sum(1 for f in self.summary_data.values() if f.get('status') == 'Valid'),
+                'corrupted_zip_files': sum(1 for f in self.summary_data.values() if f.get('status') == 'Corrupted')
+            }
+            bak_summary = self.generate_bak_summary(scan_results)
+
+        plain_text = f"""
+SISTEM MONITORING BACKUP DATABASE - LAPORAN ANALISIS
+==================================================
+
+Ringkasan Eksekutif:
+- Laporan Dibuat: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+- Total Arsip ZIP: {total_files}
+- File ZIP Valid: {valid_files}
+- Tingkat Keberhasilan: {(valid_files/total_files*100):.1f}%
+- Total File BAK: {bak_summary.get('total_bak_files', 0)}
+- Status Sistem: {'AKTIF' if valid_files > 0 else 'TIDAK AKTIF'}
+
+Analisis Arsip ZIP:
+- Total File ZIP: {total_files}
+- Arsip Valid: {valid_files}
+- Arsip Rusak: {total_files - valid_files}
+
+Analisis File Backup Database:
+- Total File BAK: {bak_summary.get('total_bak_files', 0)}
+- File BAK Dianalisis: {bak_summary.get('analyzed_bak_files', 0)}
+- Total Ukuran BAK: {bak_summary.get('total_bak_size_formatted', 'N/A')}
+
+Validasi Ukuran:
+- Di Atas Minimum: {bak_summary.get('size_validation', {}).get('above_minimum', 0)}
+- Di Bawah Minimum: {bak_summary.get('size_validation', {}).get('below_minimum', 0)}
+
+Analisis Usia:
+- 24 Jam Terakhir: {bak_summary.get('age_analysis', {}).get('recent_24h', 0)}
+- 7 Hari Terakhir: {bak_summary.get('age_analysis', {}).get('last_7_days', 0)}
+- Lebih dari 7 Hari: {bak_summary.get('age_analysis', {}).get('older_than_7_days', 0)}
+- File Tidak Modifikasi Hari Ini: {len(bak_summary.get('age_analysis', {}).get('outdated_files', []))}
+
+Informasi Sistem:
+- Pengecualian PlantwareP3: {'AKTIF' if self.config.getboolean('MONITORING', 'exclude_plantware', fallback=True) else 'TIDAK AKTIF'}
+- Versi Sistem: Enhanced Backup Monitor v3.0
+
+Detail File ZIP:
+"""
+
+        for file_path, file_info in self.summary_data.items():
+            filename = os.path.basename(file_path)
+            backup_type = file_info.get('backup_type', 'Unknown')
+            size = self.format_size(file_info.get('size', 0))
+            status = file_info.get('status', 'Unknown')
+
+            plain_text += f"- {filename} ({backup_type}, {size}, {status})\n"
+
+        plain_text += f"""
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Enhanced Backup Monitor v3.0 - Analisis Real-time dengan 12 Parameter Validasi
+"""
+
+        return plain_text
+
     def send_email(self, subject: str, body: str, attachment_path: str = None):
-        """Kirim notifikasi email"""
+        """Kirim notifikasi email dengan HTML dan plain text fallback"""
         try:
             # Get email configuration
             smtp_server = self.config['EMAIL']['smtp_server']
@@ -1870,14 +1972,28 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             sender_password = self.config['EMAIL']['sender_password']
             recipient_email = self.config['EMAIL']['recipient_email']
 
-            # Create message
-            msg = MIMEMultipart()
+            # Create message dengan 'mixed' untuk mendukung attachment
+            msg = MIMEMultipart('mixed')
             msg['From'] = sender_email
             msg['To'] = recipient_email
             msg['Subject'] = subject
 
-            # Attach body
-            msg.attach(MIMEText(body, 'plain'))
+            # Create alternative part untuk HTML dan plain text
+            alt_msg = MIMEMultipart('alternative')
+
+            # Generate plain text version for compatibility
+            plain_text = self.generate_plain_text_version()
+
+            # Attach plain text version
+            alt_msg.attach(MIMEText(plain_text, 'plain', 'utf-8'))
+
+            # Attach HTML version dengan encoding UTF-8
+            html_part = MIMEText(body, 'html', 'utf-8')
+            html_part.add_header('Content-Disposition', 'inline')
+            alt_msg.attach(html_part)
+
+            # Attach alternative part ke message utama
+            msg.attach(alt_msg)
 
             # Add attachment if provided
             if attachment_path and os.path.exists(attachment_path):

@@ -35,7 +35,7 @@
             "file_size_formatted": "2.2 GB",
             "readable": true,
             "backup_type": "BackupStaging",
-            "analysis_timestamp": "2025-10-07T10:19:36.015581",
+            "analysis_timestamp": "2025-10-07T10:31:38.342223",
             "dbatools_version": "Simulated v1.0",
             "warnings": [],
             "errors": [],
@@ -204,7 +204,7 @@
             "file_size_formatted": "8.3 GB",
             "readable": true,
             "backup_type": "BackupVenus",
-            "analysis_timestamp": "2025-10-07T10:19:59.678635",
+            "analysis_timestamp": "2025-10-07T10:32:01.820619",
             "dbatools_version": "Simulated v1.0",
             "warnings": [],
             "errors": [],
@@ -282,7 +282,7 @@
             }
           },
           "is_outdated": true,
-          "days_since_backup": 2,
+          "days_since_backup": 3,
           "file_date_one_day_different": false,
           "size_warning": true
         }
@@ -329,7 +329,7 @@
     },
     "deep_parameters": {
       "file_date_one_day_different": false,
-      "days_difference": 2,
+      "days_difference": 3,
       "can_be_extracted": true,
       "dbatools_status": "Unknown",
       "contains_bak_files": true,
