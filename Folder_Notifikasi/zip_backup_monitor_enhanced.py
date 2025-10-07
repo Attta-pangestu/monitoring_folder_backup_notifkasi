@@ -517,20 +517,26 @@ class ZipBackupMonitorEnhanced:
                         sql_result = self.analyze_with_sql_server(extracted_path, backup_type)
                         file_analysis['sql_analysis'] = sql_result
 
-                    # Check date analysis
+                    # Check date analysis - ALWAYS use ZIP file date, not BAK file date
+                    # BAK file date changes when extracted, ZIP file date is the actual backup date
                     is_outdated, days_diff = self.check_backup_outdated(zip_path)
                     file_analysis['is_outdated'] = is_outdated
                     file_analysis['days_since_backup'] = days_diff
 
-                    # Check if file date is one day different (modified within 24 hours)
-                    mod_time = os.path.getmtime(zip_path)
-                    mod_date = datetime.fromtimestamp(mod_time)
+                    # Check if file date is one day different (modified within 24 hours) - use ZIP file
+                    zip_mod_time = os.path.getmtime(zip_path)
+                    zip_mod_date = datetime.fromtimestamp(zip_mod_time)
                     current_date = datetime.now()
-                    hours_diff = (current_date - mod_date).total_seconds() / 3600
+                    hours_diff = (current_date - zip_mod_date).total_seconds() / 3600
                     file_analysis['file_date_one_day_different'] = hours_diff <= 24
+                    
+                    # Store ZIP file modification date for reporting
+                    file_analysis['zip_modification_date'] = zip_mod_date.isoformat()
+                    file_analysis['backup_date'] = zip_mod_date.strftime('%Y-%m-%d %H:%M:%S')
 
-                    # Log date analysis for debugging
-                    self.logger.info(f"Date analysis for {extracted_file}: "
+                    # Log date analysis for debugging - clarify we're using ZIP file date
+                    self.logger.info(f"Date analysis for {extracted_file} (using ZIP file date): "
+                                   f"zip_date={zip_mod_date.strftime('%Y-%m-%d %H:%M:%S')}, "
                                    f"hours_diff={hours_diff:.1f}, one_day_diff={file_analysis['file_date_one_day_different']}, "
                                    f"days_since_backup={days_diff}, is_outdated={is_outdated}")
 
@@ -1205,7 +1211,16 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         try:
             # Get overall backup status for subject
             backup_status = self.get_overall_backup_status()
-            subject = f"[VALID | {backup_status}] Enhanced Monitor Backup - Email Test"
+            
+            # Create proper subject based on backup status
+            if backup_status == "OUTDATED":
+                status_label = "OUTDATED"
+            elif backup_status == "UPDATE":
+                status_label = "UPDATE"
+            else:
+                status_label = "VALID"
+            
+            subject = f"[{status_label}] Enhanced Monitor Backup - Email Test"
             body = "Ini adalah email test dari Enhanced Monitor Backup.\n\nWaktu pengiriman: " + datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
             self.send_email(subject, body)
@@ -1255,7 +1270,16 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
             # Get overall backup status for subject
             backup_status = self.get_overall_backup_status()
-            subject = f"[VALID | {backup_status}] Deep Analysis Report - {datetime.now().strftime('%Y-%m-%d')}"
+            
+            # Create proper subject based on backup status
+            if backup_status == "OUTDATED":
+                status_label = "OUTDATED"
+            elif backup_status == "UPDATE":
+                status_label = "UPDATE"
+            else:
+                status_label = "VALID"
+            
+            subject = f"[{status_label}] Deep Analysis Report - {datetime.now().strftime('%Y-%m-%d')}"
             body = self.generate_deep_analysis_email_template()
 
             self.send_email(subject, body)
@@ -1686,7 +1710,11 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 except:
                     modified_time = datetime.now()
 
-            days_diff = (datetime.now() - modified_time).days if isinstance(modified_time, datetime) else 0
+            # Use actual days_since_backup from file_info if available
+            days_diff = file_info.get('days_since_backup', 0)
+            if days_diff == 0:
+                days_diff = (datetime.now() - modified_time).days if isinstance(modified_time, datetime) else 0
+            
             backup_type = file_info.get('backup_type', 'Unknown')
             status = file_info.get('status', 'Unknown')
             
@@ -1739,25 +1767,37 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             for bak_file in self.bak_summary.get('bak_files', []):
                 bak_filename = bak_file.get('filename', 'Unknown')
                 bak_type = bak_file.get('backup_type', 'Unknown')
-                bak_modified = bak_file.get('modified_time', 'Unknown')
-
-                if isinstance(bak_modified, str):
+                
+                # Use backup_date from analysis (ZIP file date) instead of BAK modified time
+                backup_date_str = bak_file.get('backup_date', 'Unknown')
+                if backup_date_str != 'Unknown' and backup_date_str != 'CompressionAlgorithm':
                     try:
-                        bak_modified = datetime.fromisoformat(bak_modified.replace('Z', '+00:00'))
+                        # Try different date formats
+                        if 'T' in backup_date_str:
+                            bak_modified = datetime.fromisoformat(backup_date_str.replace('Z', '+00:00'))
+                        else:
+                            bak_modified = datetime.strptime(backup_date_str, '%Y-%m-%d %H:%M:%S')
                     except:
-                        bak_modified = datetime.now()
+                        # Fallback: use days_since_backup to calculate approximate date
+                        days_since = bak_file.get('days_since_backup', 0)
+                        bak_modified = datetime.now() - timedelta(days=days_since)
+                else:
+                    # Fallback: use days_since_backup to calculate approximate date
+                    days_since = bak_file.get('days_since_backup', 0)
+                    bak_modified = datetime.now() - timedelta(days=days_since)
 
-                bak_days_diff = (datetime.now() - bak_modified).days if isinstance(bak_modified, datetime) else 0
+                # Use the actual days_since_backup from analysis
+                bak_days_diff = bak_file.get('days_since_backup', 0)
                 is_outdated = bak_file.get('is_outdated', False)
                 
-                # Format tanggal backup BAK dengan lebih menonjol
-                bak_backup_date_formatted = bak_modified.strftime('%d %B %Y, %H:%M:%S') if isinstance(bak_modified, datetime) else bak_modified
+                # Format tanggal backup dengan lebih menonjol - menggunakan tanggal ZIP file
+                bak_backup_date_formatted = bak_modified.strftime('%d %B %Y, %H:%M:%S') if isinstance(bak_modified, datetime) else backup_date_str
                 bak_age_color = '#d32f2f' if bak_days_diff > 7 else '#388e3c' if bak_days_diff <= 1 else '#f57c00'
 
                 body += f"""
                             <div style="background: white; padding: 8px; border-radius: 4px; border: 1px solid #e0e0e0;">
                                 <div style="font-weight: bold; color: #f57c00; margin-bottom: 2px; font-size: 13px;">{bak_filename}</div>
-                                <div style="color: {bak_age_color}; font-weight: bold; font-size: 12px;">🗓️ Tanggal Backup: {bak_backup_date_formatted}</div>
+                                <div style="color: {bak_age_color}; font-weight: bold; font-size: 12px;">🗓️ Tanggal Backup (ZIP): {bak_backup_date_formatted}</div>
                                 <div style="color: #666; font-size: 11px;">Tipe: {bak_type} | Usia: {bak_days_diff} hari | Status: {'KADALUARSA' if is_outdated else 'MASIH BERLAKU'}</div>
                             </div>
 """
