@@ -6,7 +6,9 @@
       "Bash(python:*)",
       "Read(//d/Gawean Rebinmas/App_Auto_Backup/Backup/**)",
       "Bash(dir:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

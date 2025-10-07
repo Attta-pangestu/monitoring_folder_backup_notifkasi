@@ -49,6 +49,11 @@ class ZipBackupMonitorEnhanced:
         self.scheduler_thread = None
         self.scheduler_running = False
 
+        # File monitoring attributes
+        self.last_file_modification_times = {}
+        self.valid_files = []
+        self.invalid_files = []
+
         # Define valid backup filename prefixes
         self.valid_backup_prefixes = ['backupstaging', 'backupvenuz', 'plantwarep3']
 
@@ -192,9 +197,28 @@ class ZipBackupMonitorEnhanced:
         ttk.Label(config_frame, text=f"PlantwareP3: {exclude_status} | SQL Analysis: {sql_status} | Deep BAK Scan: Aktif",
                  font=('Arial', 10, 'bold')).grid(row=0, column=0, sticky=tk.W)
 
-        # Notebook for tabs
-        self.notebook = ttk.Notebook(main_frame)
-        self.notebook.grid(row=4, column=0, columnspan=4, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        # Create main content area with dashboard and tabs
+        content_frame = ttk.Frame(main_frame)
+        content_frame.grid(row=4, column=0, columnspan=4, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        
+        # Create PanedWindow for resizable layout
+        paned_window = ttk.PanedWindow(content_frame, orient=tk.HORIZONTAL)
+        paned_window.pack(fill=tk.BOTH, expand=True)
+        
+        # Dashboard Panel (Left side - 40% width)
+        dashboard_panel = ttk.LabelFrame(paned_window, text="Dashboard Monitoring Real-time", padding="5")
+        paned_window.add(dashboard_panel, weight=2)
+        
+        # Setup dashboard in the left panel
+        self.setup_main_dashboard_ui(dashboard_panel)
+        
+        # Tabs Panel (Right side - 60% width)
+        tabs_panel = ttk.Frame(paned_window)
+        paned_window.add(tabs_panel, weight=3)
+        
+        # Notebook for tabs in right panel
+        self.notebook = ttk.Notebook(tabs_panel)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
 
         # Summary tab
         summary_frame = ttk.Frame(self.notebook)
@@ -246,11 +270,6 @@ class ZipBackupMonitorEnhanced:
         load_button = ttk.Button(backup_history_frame, text="Load History from JSON", command=self.load_backup_history_on_startup)
         load_button.pack(pady=5)
 
-        # Monitoring Dashboard tab
-        dashboard_frame = ttk.Frame(self.notebook)
-        self.notebook.add(dashboard_frame, text="Dashboard Monitoring")
-        self.setup_dashboard_ui(dashboard_frame)
-
         # Log tab
         log_frame = ttk.Frame(self.notebook)
         self.notebook.add(log_frame, text="Log")
@@ -276,6 +295,9 @@ class ZipBackupMonitorEnhanced:
             self.load_backup_history_on_startup()
         except Exception as e:
             self.logger.error(f"Error loading backup history on startup: {str(e)}")
+        
+        # Start dashboard auto-update
+        self.root.after(5000, self.update_dashboard_stats)  # Start after 5 seconds
 
     def load_scheduler_settings(self):
         """Load scheduler settings from config file"""
@@ -500,7 +522,7 @@ class ZipBackupMonitorEnhanced:
                 time.sleep(30)  # Wait before retrying
 
     def execute_scheduled_analysis(self):
-        """Execute the scheduled analysis"""
+        """Execute the scheduled analysis with complete monitoring process"""
         try:
             if not self.monitoring_path.get():
                 self.update_log("Error: Folder monitoring belum dipilih")
@@ -509,7 +531,7 @@ class ZipBackupMonitorEnhanced:
             self.update_log("Memulai scheduled analysis...")
             self.update_status("Scheduled analysis berjalan...")
 
-            # Step 1: Start monitoring
+            # Step 1: Start monitoring state
             self.is_monitoring = True
             self.start_button.config(state=tk.DISABLED)
             self.stop_button.config(state=tk.NORMAL)
@@ -518,34 +540,70 @@ class ZipBackupMonitorEnhanced:
             # Step 2: Update monitored files display
             self.update_monitored_files_display()
 
-            # Step 3: Find and rename files with latest date
-            zip_files = self.find_zip_files(self.monitoring_path.get())
-            if zip_files:
-                self.update_log(f"Ditemukan {len(zip_files)} file backup untuk dianalisis")
-
-                # Step 3a: Rename files with latest date format
-                self.update_log("Memproses rename file dengan format tanggal terbaru...")
-                renamed_files = self.rename_files_with_latest_date(zip_files)
-
-                # Step 3b: Analyze renamed files
-                self.deep_scan_files()
-
-                # Step 4: Send email report
-                self.update_log("Mengirim laporan email scheduled...")
-                self.send_deep_analysis_email()
-            else:
+            # Step 3: Find ZIP files
+            path = self.monitoring_path.get()
+            zip_files = self.find_zip_files(path)
+            
+            if not zip_files:
                 self.update_log("Tidak ada file backup yang ditemukan")
+                return
 
-            # Step 5: Stop monitoring
+            self.update_log(f"Ditemukan {len(zip_files)} file backup untuk dianalisis")
+
+            # Step 4: Filter files by latest date (same as manual monitoring)
+            self.update_log("Memfilter file berdasarkan tanggal terbaru...")
+            latest_date = self.get_latest_date(zip_files)
+            filtered_files = [f for f in zip_files if self.is_file_date(f, latest_date)]
+            
+            self.update_log(f"File dengan tanggal terbaru ({latest_date}): {len(filtered_files)} file")
+
+            if not filtered_files:
+                self.update_log("Tidak ada file dengan tanggal terbaru ditemukan")
+                return
+
+            # Step 5: Rename files with latest date format
+            self.update_log("Memproses rename file dengan format tanggal terbaru...")
+            renamed_files = self.rename_files_with_latest_date(filtered_files)
+            self.update_log(f"Rename selesai: {len(renamed_files)} file diproses")
+
+            # Step 6: Perform deep analysis on filtered files (same as manual monitoring)
+            self.update_log("Memulai deep analysis file yang telah difilter...")
+            self.update_status("Deep scanning file...")
+            
+            # Analyze files with progress updates
+            self.deep_analyze_files_threaded(filtered_files)
+            
+            # Wait for analysis to complete
+            import time
+            time.sleep(2)  # Give time for analysis to complete
+            
+            # Update summary
+            self.update_summary()
+            self.update_log("Deep analysis selesai")
+
+            # Step 7: Send comprehensive email report with analyzed data
+            self.update_log("Mengirim laporan email dengan data analisis lengkap...")
+            self.send_deep_analysis_email()
+            self.update_log("Email laporan terkirim")
+
+            # Step 8: Stop monitoring
             self.is_monitoring = False
             self.start_button.config(state=tk.NORMAL)
             self.stop_button.config(state=tk.DISABLED)
             self.update_status("Scheduled analysis selesai")
             self.update_monitored_files_display()
 
+            self.update_log("Scheduled analysis berhasil diselesaikan")
+
         except Exception as e:
             self.logger.error(f"Error in scheduled analysis: {str(e)}")
             self.update_log(f"Error dalam scheduled analysis: {str(e)}")
+            
+            # Reset monitoring state on error
+            self.is_monitoring = False
+            self.start_button.config(state=tk.NORMAL)
+            self.stop_button.config(state=tk.DISABLED)
+            self.update_status("Error dalam scheduled analysis")
 
     def manual_rename_files(self):
         """Manual rename files with latest date format"""
@@ -3115,14 +3173,14 @@ Enhanced Backup Monitor v3.0 - Analisis Real-time dengan 12 Parameter Validasi
             self.stat_cards[key] = {'frame': card_frame, 'value': value_label, 'label': label_widget}
 
     def create_backup_cards_section(self, parent):
-        """Create backup file cards section"""
+        """Create compact backup file cards section"""
         cards_frame = tk.Frame(parent, bg='#f8f9fa')
-        cards_frame.pack(fill='both', expand=True, padx=10, pady=5)
+        cards_frame.pack(fill='both', expand=True, padx=5, pady=3)
 
-        # Header
-        header_label = tk.Label(cards_frame, text="Detail Analisis File Backup",
-                              font=('Arial', 14, 'bold'), bg='#f8f9fa', fg='#2c3e50')
-        header_label.pack(anchor='w', pady=(10, 5))
+        # Header - smaller
+        header_label = tk.Label(cards_frame, text="📋 Backup Files",
+                              font=('Arial', 10, 'bold'), bg='#f8f9fa', fg='#2c3e50')
+        header_label.pack(anchor='w', pady=(5, 3))
 
         # Container for backup cards
         self.backup_cards_container = tk.Frame(cards_frame, bg='#f8f9fa')
@@ -3144,14 +3202,11 @@ Enhanced Backup Monitor v3.0 - Analisis Real-time dengan 12 Parameter Validasi
             return
 
         try:
-            # Update critical info
-            self.update_critical_info()
-
-            # Update executive summary
-            self.update_executive_summary()
-
-            # Update backup cards
-            self.update_backup_cards()
+            # Use the new dashboard update system instead of old tab-based dashboard
+            if hasattr(self, 'update_dashboard_stats'):
+                self.update_dashboard_stats()
+            else:
+                self.logger.warning("New dashboard system not available, skipping dashboard update")
 
         except Exception as e:
             self.logger.error(f"Error updating dashboard display: {str(e)}")
@@ -3702,6 +3757,272 @@ Enhanced Backup Monitor v3.0 - Analisis Real-time dengan 12 Parameter Validasi
                         bak_summary['by_validation_status']['invalid'] += 1
 
         return bak_summary
+
+    def setup_main_dashboard_ui(self, parent):
+        """Setup dashboard monitoring UI yang terintegrasi dengan panel utama"""
+        # Main dashboard container - no scrollbars, fit to available space
+        main_container = tk.Frame(parent, bg='#f8f9fa')
+        main_container.pack(fill='both', expand=True, padx=2, pady=2)
+        
+        # Header section with title and controls - compact design
+        header_frame = tk.Frame(main_container, bg='#2c3e50', height=45)
+        header_frame.pack(fill='x', pady=(0, 5))
+        header_frame.pack_propagate(False)
+        
+        # Title - smaller font for compact layout
+        title_label = tk.Label(header_frame, text="Dashboard Monitoring", 
+                              font=('Arial', 12, 'bold'), bg='#2c3e50', fg='white')
+        title_label.pack(side='left', padx=10, pady=10)
+        
+        # Control buttons - smaller and more compact
+        controls_frame = tk.Frame(header_frame, bg='#2c3e50')
+        controls_frame.pack(side='right', padx=10, pady=8)
+        
+        refresh_btn = tk.Button(controls_frame, text="🔄", 
+                               command=self.refresh_dashboard,
+                               bg='#3498db', fg='white', font=('Arial', 8, 'bold'),
+                               relief='flat', padx=8, pady=3, width=3)
+        refresh_btn.pack(side='left', padx=2)
+        
+        load_btn = tk.Button(controls_frame, text="📊", 
+                            command=self.load_backup_history_on_startup,
+                            bg='#27ae60', fg='white', font=('Arial', 8, 'bold'),
+                            relief='flat', padx=8, pady=3, width=3)
+        load_btn.pack(side='left', padx=2)
+        
+        # Content area - direct frame without scrollbars
+        content_frame = tk.Frame(main_container, bg='#f8f9fa')
+        content_frame.pack(fill='both', expand=True)
+        
+        # Store references for updates
+        self.dashboard_frame = content_frame
+        
+        # Create dashboard sections with compact layout
+        self.create_status_overview_section(content_frame)
+        self.create_quick_stats_section(content_frame)
+        self.create_backup_cards_section(content_frame)
+    
+    def create_status_overview_section(self, parent):
+        """Create status overview section with compact layout"""
+        # Status Overview Card - more compact
+        status_frame = tk.Frame(parent, bg='white', relief='solid', borderwidth=1)
+        status_frame.pack(fill='x', padx=5, pady=3)
+        
+        # Header - smaller height
+        header_frame = tk.Frame(status_frame, bg='#34495e', height=30)
+        header_frame.pack(fill='x')
+        header_frame.pack_propagate(False)
+        
+        header_label = tk.Label(header_frame, text="📊 Status", 
+                               font=('Arial', 10, 'bold'), bg='#34495e', fg='white')
+        header_label.pack(side='left', padx=10, pady=5)
+        
+        # Current time - smaller
+        time_label = tk.Label(header_frame, text=f"Update: {datetime.now().strftime('%H:%M')}", 
+                             font=('Arial', 8), bg='#34495e', fg='#bdc3c7')
+        time_label.pack(side='right', padx=10, pady=5)
+        
+        # Content area - more compact
+        content_frame = tk.Frame(status_frame, bg='white')
+        content_frame.pack(fill='x', padx=8, pady=8)
+        
+        # Create status indicators in grid layout
+        self.status_indicators = {}
+        
+        # Row 1: System Status
+        row1_frame = tk.Frame(content_frame, bg='white')
+        row1_frame.pack(fill='x', pady=2)
+        
+        self.status_indicators['system'] = tk.Label(row1_frame, text="🟢 System: ACTIVE", 
+                                                   font=('Arial', 9, 'bold'), bg='white', fg='#27ae60')
+        self.status_indicators['system'].pack(side='left')
+        
+        self.status_indicators['monitoring'] = tk.Label(row1_frame, text="🔍 Monitor: RUNNING", 
+                                                       font=('Arial', 9, 'bold'), bg='white', fg='#3498db')
+        self.status_indicators['monitoring'].pack(side='right')
+        
+        # Row 2: File Counts
+        row2_frame = tk.Frame(content_frame, bg='white')
+        row2_frame.pack(fill='x', pady=2)
+        
+        self.status_indicators['total_files'] = tk.Label(row2_frame, text="📁 Files: 0", 
+                                                        font=('Arial', 9), bg='white', fg='#2c3e50')
+        self.status_indicators['total_files'].pack(side='left')
+        
+        self.status_indicators['valid_files'] = tk.Label(row2_frame, text="✅ Valid: 0", 
+                                                        font=('Arial', 9), bg='white', fg='#27ae60')
+        self.status_indicators['valid_files'].pack(side='right')
+        
+        # Row 3: Issues
+        row3_frame = tk.Frame(content_frame, bg='white')
+        row3_frame.pack(fill='x', pady=2)
+        
+        self.status_indicators['warnings'] = tk.Label(row3_frame, text="⚠️ Warnings: 0", 
+                                                     font=('Arial', 9), bg='white', fg='#f39c12')
+        self.status_indicators['warnings'].pack(side='left')
+        
+        self.status_indicators['errors'] = tk.Label(row3_frame, text="❌ Errors: 0", 
+                                                   font=('Arial', 9), bg='white', fg='#e74c3c')
+        self.status_indicators['errors'].pack(side='right')
+    
+    def create_quick_stats_section(self, parent):
+        """Create compact quick statistics section"""
+        # Quick Stats Container - more compact
+        stats_container = tk.Frame(parent, bg='#f8f9fa')
+        stats_container.pack(fill='x', padx=5, pady=3)
+        
+        # Title - smaller
+        title_label = tk.Label(stats_container, text="📈 Statistics", 
+                              font=('Arial', 10, 'bold'), bg='#f8f9fa', fg='#2c3e50')
+        title_label.pack(anchor='w', pady=(0, 5))
+        
+        # Stats cards frame
+        cards_frame = tk.Frame(stats_container, bg='#f8f9fa')
+        cards_frame.pack(fill='x')
+        
+        # Create stat cards - smaller
+        self.stat_cards = {}
+        
+        # Card 1: Total Size
+        card1 = tk.Frame(cards_frame, bg='#3498db', relief='solid', borderwidth=1)
+        card1.pack(side='left', fill='both', expand=True, padx=1)
+        
+        tk.Label(card1, text="💾", font=('Arial', 14), bg='#3498db', fg='white').pack(pady=3)
+        self.stat_cards['total_size'] = tk.Label(card1, text="0 GB", font=('Arial', 10, 'bold'), 
+                                                bg='#3498db', fg='white')
+        self.stat_cards['total_size'].pack()
+        tk.Label(card1, text="Size", font=('Arial', 8), bg='#3498db', fg='white').pack(pady=(0, 5))
+        
+        # Card 2: Latest Backup
+        card2 = tk.Frame(cards_frame, bg='#27ae60', relief='solid', borderwidth=1)
+        card2.pack(side='left', fill='both', expand=True, padx=1)
+        
+        tk.Label(card2, text="🕒", font=('Arial', 14), bg='#27ae60', fg='white').pack(pady=3)
+        self.stat_cards['latest_backup'] = tk.Label(card2, text="N/A", font=('Arial', 10, 'bold'), 
+                                                   bg='#27ae60', fg='white')
+        self.stat_cards['latest_backup'].pack()
+        tk.Label(card2, text="Latest", font=('Arial', 8), bg='#27ae60', fg='white').pack(pady=(0, 5))
+        
+        # Card 3: Success Rate
+        card3 = tk.Frame(cards_frame, bg='#f39c12', relief='solid', borderwidth=1)
+        card3.pack(side='left', fill='both', expand=True, padx=1)
+        
+        tk.Label(card3, text="📊", font=('Arial', 14), bg='#f39c12', fg='white').pack(pady=3)
+        self.stat_cards['success_rate'] = tk.Label(card3, text="0%", font=('Arial', 10, 'bold'), 
+                                                  bg='#f39c12', fg='white')
+        self.stat_cards['success_rate'].pack()
+        tk.Label(card3, text="Success", font=('Arial', 8), bg='#f39c12', fg='white').pack(pady=(0, 5))
+        
+        # Card 4: Status
+        card4 = tk.Frame(cards_frame, bg='#9b59b6', relief='solid', borderwidth=1)
+        card4.pack(side='left', fill='both', expand=True, padx=1)
+        
+        tk.Label(card4, text="🎯", font=('Arial', 14), bg='#9b59b6', fg='white').pack(pady=3)
+        self.stat_cards['overall_status'] = tk.Label(card4, text="CHECKING", font=('Arial', 10, 'bold'), 
+                                                    bg='#9b59b6', fg='white')
+        self.stat_cards['overall_status'].pack()
+        tk.Label(card4, text="Status", font=('Arial', 8), bg='#9b59b6', fg='white').pack(pady=(0, 5))
+
+    def refresh_dashboard(self):
+        """Refresh dashboard dengan data terbaru"""
+        try:
+            # Initialize attributes if they don't exist
+            if not hasattr(self, 'valid_files'):
+                self.valid_files = []
+            if not hasattr(self, 'invalid_files'):
+                self.invalid_files = []
+            
+            # Update status indicators
+            if hasattr(self, 'status_indicators'):
+                # Update system status
+                self.status_indicators['system'].config(text="🟢 System Status: ACTIVE")
+                self.status_indicators['monitoring'].config(text="🔍 Monitoring: RUNNING")
+                
+                # Count files
+                total_files = len(self.valid_files) + len(self.invalid_files)
+                valid_count = len(self.valid_files)
+                warning_count = len([f for f in self.valid_files if 'warning' in str(f).lower()])
+                error_count = len(self.invalid_files)
+                
+                self.status_indicators['total_files'].config(text=f"📁 Total Files: {total_files}")
+                self.status_indicators['valid_files'].config(text=f"✅ Valid: {valid_count}")
+                self.status_indicators['warnings'].config(text=f"⚠️ Warnings: {warning_count}")
+                self.status_indicators['errors'].config(text=f"❌ Errors: {error_count}")
+            
+            # Update statistics cards
+            if hasattr(self, 'stat_cards'):
+                # Calculate total size
+                total_size = 0
+                latest_backup = "N/A"
+                
+                if self.valid_files:
+                    for file_path in self.valid_files:
+                        try:
+                            if os.path.exists(file_path):
+                                size = os.path.getsize(file_path)
+                                total_size += size
+                        except:
+                            pass
+                    
+                    # Get latest backup
+                    try:
+                        existing_files = [f for f in self.valid_files if os.path.exists(f)]
+                        if existing_files:
+                            latest_file = max(existing_files, key=os.path.getmtime)
+                            latest_backup = os.path.basename(latest_file)
+                    except:
+                        pass
+                
+                # Format size
+                if total_size > 1024**3:  # GB
+                    size_text = f"{total_size / (1024**3):.1f} GB"
+                elif total_size > 1024**2:  # MB
+                    size_text = f"{total_size / (1024**2):.1f} MB"
+                else:
+                    size_text = f"{total_size / 1024:.1f} KB"
+                
+                # Calculate success rate
+                if total_files > 0:
+                    success_rate = (valid_count / total_files) * 100
+                    rate_text = f"{success_rate:.1f}%"
+                else:
+                    rate_text = "0%"
+                
+                # Determine overall status
+                if error_count > 0:
+                    status_text = "ISSUES"
+                    status_color = '#e74c3c'
+                elif warning_count > 0:
+                    status_text = "WARNING"
+                    status_color = '#f39c12'
+                else:
+                    status_text = "HEALTHY"
+                    status_color = '#27ae60'
+                
+                # Update cards
+                self.stat_cards['total_size'].config(text=size_text)
+                self.stat_cards['latest_backup'].config(text=latest_backup[:15] + "..." if len(latest_backup) > 15 else latest_backup)
+                self.stat_cards['success_rate'].config(text=rate_text)
+                self.stat_cards['overall_status'].config(text=status_text)
+            
+            # Update backup cards if method exists
+            if hasattr(self, 'update_backup_cards'):
+                self.update_backup_cards()
+                
+        except Exception as e:
+            print(f"Error refreshing dashboard: {e}")
+
+    def update_dashboard_stats(self):
+        """Update dashboard statistics secara otomatis"""
+        try:
+            if hasattr(self, 'dashboard_frame'):
+                self.refresh_dashboard()
+            # Schedule next update
+            self.root.after(30000, self.update_dashboard_stats)  # Update every 30 seconds
+        except Exception as e:
+            print(f"Error in update_dashboard_stats: {e}")
+            # Still schedule next update even if there's an error
+            self.root.after(30000, self.update_dashboard_stats)
 
     def update_file_display(self):
         """Update the file display to show only valid files"""

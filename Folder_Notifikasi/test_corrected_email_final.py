@@ -76,7 +76,7 @@ def test_corrected_email():
     
     if backup_status.upper() == "OUTDATED":
         status_label = "OUTDATED"
-    elif backup_status.upper() == "UPDATED":
+    elif backup_status5.upper() == "UPDATED":
         status_label = "UPDATED"
     else:
         status_label = "UPDATED"  # Default to UPDATED if not outdated
@@ -114,3 +114,4 @@ def test_corrected_email():
 
 if __name__ == "__main__":
     test_corrected_email()
+
