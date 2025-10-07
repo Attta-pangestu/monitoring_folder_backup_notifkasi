@@ -1244,10 +1244,46 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         total_files = len(self.summary_data)
         valid_files = sum(1 for f in self.summary_data.values() if f['status'] == 'Valid')
         extracted_files = sum(1 for f in self.summary_data.values() if f['extracted'])
+        report_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        success_rate = (valid_files/total_files*100) if total_files > 0 else 0
 
         # Get current summaries
         zip_summary = getattr(self, 'zip_summary', {})
         bak_summary = getattr(self, 'bak_summary', {})
+
+        # Calculate backup date from most recent file
+        backup_dates = []
+        for file_path, file_info in self.summary_data.items():
+            try:
+                mod_time = os.path.getmtime(file_path)
+                mod_date = datetime.fromtimestamp(mod_time)
+                backup_dates.append(mod_date)
+            except:
+                continue
+
+        # Use most recent backup date or current date if no files found
+        latest_backup_date = max(backup_dates) if backup_dates else datetime.now()
+        backup_analysis_date = latest_backup_date.strftime('%Y-%m-%d')
+        backup_analysis_datetime = latest_backup_date.strftime('%Y-%m-%d %H:%M:%S')
+
+        # Get oldest backup date for range information
+        oldest_backup_date = min(backup_dates) if backup_dates else datetime.now()
+        oldest_backup_datetime = oldest_backup_date.strftime('%Y-%m-%d %H:%M:%S')
+
+        # Format backup dates information
+        backup_dates_info = []
+        for file_path, file_info in self.summary_data.items():
+            try:
+                mod_time = os.path.getmtime(file_path)
+                mod_date = datetime.fromtimestamp(mod_time)
+                filename = os.path.basename(file_path)
+                backup_dates_info.append({
+                    'filename': filename,
+                    'datetime': mod_date.strftime('%Y-%m-%d %H:%M:%S'),
+                    'date': mod_date.strftime('%Y-%m-%d')
+                })
+            except:
+                continue
 
         # Calculate critical alerts
         critical_alerts = len(bak_summary.get('age_analysis', {}).get('outdated_files', [])) + len(bak_summary.get('size_validation', {}).get('size_warnings', []))
@@ -1514,11 +1550,150 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             <p>LAPORAN ANALISIS LENGKAP</p>
         </div>
 
+        <!-- INFORMASI PENTING BACKUP - PRIORITY SECTION -->
+        <div class="section priority-info" style="background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; margin-bottom: 25px;">
+            <h2 style="color: #856404; margin-top: 0;">INFORMASI KRITIS BACKUP</h2>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <h3 style="color: #856404; margin-bottom: 10px;">Informasi Backup</h3>
+                    <p style="margin: 5px 0; color: #856404;"><strong>Laporan Dibuat:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                    <p style="margin: 5px 0; color: #856404;"><strong>Backup Terbaru:</strong> {backup_analysis_datetime}</p>
+                    <p style="margin: 5px 0; color: #856404;"><strong>Backup Terlama:</strong> {oldest_backup_datetime}</p>
+                    <p style="margin: 5px 0; color: #856404;"><strong>Total File Backup:</strong> {len(backup_dates_info)}</p>
+                </div>
+                <div>
+                    <h3 style="color: #856404; margin-bottom: 10px;">Status Kritis</h3>
+                    <p style="margin: 5px 0; color: #856404;"><strong>Item Perlu Perhatian:</strong> {critical_alerts}</p>
+                    <p style="margin: 5px 0; color: #856404;"><strong>Status Sistem:</strong> {'NORMAL' if valid_files > 0 and len(bak_summary.get('age_analysis', {}).get('outdated_files', [])) == 0 else 'PERLU PERHATIAN'}</p>
+                </div>
+            </div>
+
+            <h3 style="color: #856404; margin-bottom: 15px;">Checklist Status Backup</h3>
+            <table style="width: 100%; border-collapse: collapse; background-color: white;">
+                <thead>
+                    <tr style="background-color: #f8f9fa;">
+                        <th style="padding: 12px; border: 1px solid #dee2e6; text-align: left; color: #856404;">Parameter</th>
+                        <th style="padding: 12px; border: 1px solid #dee2e6; text-align: center; color: #856404;">Status</th>
+                        <th style="padding: 12px; border: 1px solid #dee2e6; text-align: left; color: #856404;">Detail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>ZIP Bisa Dibuka</strong></td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge {'status-valid' if len([f for f in self.summary_data.values() if f.get('status') == 'Valid']) == total_files else 'status-invalid'}">
+                                {'✓' if len([f for f in self.summary_data.values() if f.get('status') == 'Valid']) == total_files else '✗'}
+                            </span>
+                        </td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">
+                            {len([f for f in self.summary_data.values() if f.get('status') == 'Valid'])} dari {total_files} file ZIP valid
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>BAK File Valid</strong></td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge {'status-valid' if bak_summary.get('dbatools_analysis', {}).get('successful', 0) > 0 else 'status-warning'}">
+                                {'✓' if bak_summary.get('dbatools_analysis', {}).get('successful', 0) > 0 else '⚠'}
+                            </span>
+                        </td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">
+                            {bak_summary.get('dbatools_analysis', {}).get('successful', 0)} file BAK bisa direstore
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>🕒 Backup Tidak Kadaluarsa</strong></td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge {'status-valid' if len(bak_summary.get('age_analysis', {}).get('outdated_files', [])) == 0 else 'status-outdated'}">
+                                {'✓' if len(bak_summary.get('age_analysis', {}).get('outdated_files', [])) == 0 else '✗'}
+                            </span>
+                        </td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">
+                            {len(bak_summary.get('age_analysis', {}).get('outdated_files', []))} file outdated
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Ukuran Backup Cukup</strong></td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge {'status-valid' if bak_summary.get('size_validation', {}).get('below_minimum', 0) == 0 else 'status-warning'}">
+                                {'✓' if bak_summary.get('size_validation', {}).get('below_minimum', 0) == 0 else '⚠'}
+                            </span>
+                        </td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">
+                            {bak_summary.get('size_validation', {}).get('below_minimum', 0)} file di bawah minimum
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 6px; border-left: 4px solid #007bff;">
+                <h4 style="margin-top: 0; color: #007bff;">📄 Informasi File Backup</h4>
+                <div style="color: #6c757d;">
+                    <p style="margin: 5px 0;"><strong>File ZIP Dianalisis:</strong></p>
+                    <ul style="margin: 5px 0; padding-left: 20px;">
+"""
+
+        # Add ZIP file information
+        for file_path, file_info in self.summary_data.items():
+            filename = os.path.basename(file_path)
+            modified_time = file_info.get('modified_time', 'Unknown')
+            if isinstance(modified_time, str):
+                try:
+                    modified_time = datetime.fromisoformat(modified_time.replace('Z', '+00:00'))
+                except:
+                    modified_time = datetime.now()
+
+            days_diff = (datetime.now() - modified_time).days if isinstance(modified_time, datetime) else 0
+            backup_type = file_info.get('backup_type', 'Unknown')
+            status = file_info.get('status', 'Unknown')
+
+            body += f"""
+                        <li><strong>{filename}</strong> ({backup_type}) - Modified: {modified_time.strftime('%Y-%m-%d %H:%M:%S') if isinstance(modified_time, datetime) else modified_time} ({days_diff} hari yang lalu) - Status: {status}</li>
+"""
+
+        body += f"""
+                    </ul>
+"""
+
+        # Add BAK file information if available
+        if hasattr(self, 'bak_summary') and self.bak_summary.get('bak_files'):
+            body += f"""
+                    <p style="margin: 15px 0 5px 0;"><strong>File BAK Dianalisis:</strong></p>
+                    <ul style="margin: 5px 0; padding-left: 20px;">
+"""
+
+            for bak_file in self.bak_summary.get('bak_files', []):
+                bak_filename = bak_file.get('filename', 'Unknown')
+                bak_type = bak_file.get('backup_type', 'Unknown')
+                bak_modified = bak_file.get('modified_time', 'Unknown')
+
+                if isinstance(bak_modified, str):
+                    try:
+                        bak_modified = datetime.fromisoformat(bak_modified.replace('Z', '+00:00'))
+                    except:
+                        bak_modified = datetime.now()
+
+                bak_days_diff = (datetime.now() - bak_modified).days if isinstance(bak_modified, datetime) else 0
+                is_outdated = bak_file.get('is_outdated', False)
+
+                body += f"""
+                        <li><strong>{bak_filename}</strong> ({bak_type}) - Modified: {bak_modified.strftime('%Y-%m-%d %H:%M:%S') if isinstance(bak_modified, datetime) else bak_modified} ({bak_days_diff} hari yang lalu) - Status: {'KADALUARSA' if is_outdated else 'MASIH BERLAKU'}</li>
+"""
+
+            body += f"""
+                    </ul>
+"""
+
+        body += f"""
+                </div>
+            </div>
+        </div>
+
         <div class="section executive-summary">
-            <h2>📊 Ringkasan Eksekutif</h2>
+            <h2>Ringkasan Eksekutif</h2>
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div class="stat-number">{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+                    <div class="stat-number">{report_time}</div>
                     <div class="stat-label">Laporan Dibuat</div>
                 </div>
                 <div class="stat-card">
@@ -1530,15 +1705,19 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     <div class="stat-label">File ZIP Valid</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">{(valid_files/total_files*100):.1f}%</div>
+                    <div class="stat-number">{success_rate:.1f}%</div>
                     <div class="stat-label">Tingkat Keberhasilan</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{backup_analysis_date}</div>
+                    <div class="stat-label">Tanggal Backup</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number">{bak_summary.get('total_bak_files', 0)}</div>
                     <div class="stat-label">Total File BAK</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number status-{'active' if valid_files > 0 else 'inactive'}">{'AKTIF' if valid_files > 0 else 'TIDAK AKTIF'}</div>
+                    <div class="stat-number">{'AKTIF' if valid_files > 0 else 'TIDAK AKTIF'}</div>
                     <div class="stat-label">Status Sistem</div>
                 </div>
             </div>
@@ -1547,31 +1726,7 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         </div>
 
         <div class="section">
-            <h2>📁 Analisis Arsip ZIP</h2>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-number">{total_files}</div>
-                    <div class="stat-label">Total File ZIP</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{valid_files}</div>
-                    <div class="stat-label">Arsip Valid</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{total_files - valid_files}</div>
-                    <div class="stat-label">Arsip Rusak</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{zip_summary.get('total_size_formatted', 'N/A')}</div>
-                    <div class="stat-label">Total Ukuran Arsip</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{zip_summary.get('average_size_formatted', 'N/A')}</div>
-                    <div class="stat-label">Ukuran Rata-rata</div>
-                </div>
-            </div>
-
-            <h3>Detail File per Arsip:</h3>
+            <h2>Detail Analisis File ZIP</h2>
 """
 
         # Detailed ZIP file analysis with names, dates, and status
@@ -1635,27 +1790,7 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         </div>
 
         <div class="section">
-            <h2>🗄️ Analisis File Backup Database</h2>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-number">{bak_summary.get('total_bak_files', 0)}</div>
-                    <div class="stat-label">Total File BAK</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{bak_summary.get('analyzed_bak_files', 0)}</div>
-                    <div class="stat-label">File BAK Dianalisis</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{bak_summary.get('total_bak_size_formatted', 'N/A')}</div>
-                    <div class="stat-label">Total Ukuran BAK</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{bak_summary.get('average_bak_size_formatted', 'N/A')}</div>
-                    <div class="stat-label">Ukuran Rata-rata BAK</div>
-                </div>
-            </div>
-
-            <h3>Detail File Backup:</h3>
+            <h2>Detail Analisis File BAK</h2>
 """
 
         # Detailed BAK file analysis
@@ -1676,6 +1811,19 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     size_warning = bak_file.get('size_warning', False)
                     size_status = "DI BAWAH MINIMUM" if size_warning else "DI ATAS MINIMUM"
                     size_class = "status-warning" if size_warning else "status-valid"
+
+                    # Get minimum size based on backup type
+                    minimum_sizes_gb = {
+                        'BackupStaging': 2.3,
+                        'BackupVenus': 8.7,
+                        'PlantwareP3': 35.0
+                    }
+                    minimum_size_gb = minimum_sizes_gb.get(bak_type, 0)
+                    minimum_size = f"{minimum_size_gb} GB"
+
+                    # Calculate actual size in GB for comparison
+                    bak_size_gb = bak_file.get('size', 0) / (1024**3)  # Convert bytes to GB
+                    bak_size_formatted_gb = f"{bak_size_gb:.2f} GB"
 
                     # Age analysis
                     is_outdated_bak = bak_file.get('is_outdated', False)
@@ -1703,7 +1851,15 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     </div>
                     <div class="detail-item">
                         <span class="detail-label">Ukuran File:</span>
-                        <span class="detail-value">{bak_size}</span>
+                        <span class="detail-value">{bak_size} ({bak_size_formatted_gb})</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Ukuran Minimum:</span>
+                        <span class="detail-value">{minimum_size}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Perbandingan Ukuran:</span>
+                        <span class="detail-value">{bak_size_formatted_gb} vs {minimum_size} ({'OK' if bak_size_gb >= minimum_size_gb else 'DI BAWAH MINIMUM'})</span>
                     </div>
                     <div class="detail-item">
                         <span class="detail-label">Validasi Ukuran:</span>
@@ -1733,103 +1889,49 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         </div>
 
         <div class="section">
-            <h2>📋 Ringkasan Validasi & Analisis</h2>
-
-            <h3>Validasi Ukuran:</h3>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-number">{bak_summary.get('size_validation', {}).get('above_minimum', 0)}</div>
-                    <div class="stat-label">Di Atas Minimum</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number status-warning">{bak_summary.get('size_validation', {}).get('below_minimum', 0)}</div>
-                    <div class="stat-label">Di Bawah Minimum</div>
-                </div>
-            </div>
-
-            <h3>Persyaratan Ukuran Minimum:</h3>
-            <table>
-                <tr><th>Tipe Backup</th><th>Ukuran Minimum</th></tr>
-                <tr><td>BackupStaging</td><td>2.3 GB</td></tr>
-                <tr><td>BackupVenus</td><td>8.7 GB</td></tr>
-                <tr><td>PlantwareP3</td><td>35.0 GB</td></tr>
+            <h2>Persyaratan Ukuran Minimum Backup</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <thead>
+                    <tr style="background-color: #f8f9fa;">
+                        <th style="padding: 12px; border: 1px solid #dee2e6; text-align: left;">Tipe Backup</th>
+                        <th style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">Ukuran Minimum</th>
+                        <th style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">BackupStaging</td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">2.3 GB</td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge {'status-valid' if not any(w.get('backup_type') == 'BackupStaging' and w.get('size_warning') for w in bak_summary.get('size_validation', {}).get('size_warnings', [])) else 'status-warning'}">
+                                {'OK' if not any(w.get('backup_type') == 'BackupStaging' and w.get('size_warning') for w in bak_summary.get('size_validation', {}).get('size_warnings', [])) else 'DI BAWAH MINIMUM'}
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">BackupVenus</td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">8.7 GB</td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge {'status-valid' if not any(w.get('backup_type') == 'BackupVenus' and w.get('size_warning') for w in bak_summary.get('size_validation', {}).get('size_warnings', [])) else 'status-warning'}">
+                                {'OK' if not any(w.get('backup_type') == 'BackupVenus' and w.get('size_warning') for w in bak_summary.get('size_validation', {}).get('size_warnings', [])) else 'DI BAWAH MINIMUM'}
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border: 1px solid #dee2e6;">PlantwareP3</td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">35.0 GB</td>
+                        <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                            <span class="status-badge {'status-valid' if not any(w.get('backup_type') == 'PlantwareP3' and w.get('size_warning') for w in bak_summary.get('size_validation', {}).get('size_warnings', [])) else 'status-warning'}">
+                                {'OK' if not any(w.get('backup_type') == 'PlantwareP3' and w.get('size_warning') for w in bak_summary.get('size_validation', {}).get('size_warnings', [])) else 'DI BAWAH MINIMUM'}
+                            </span>
+                        </td>
+                    </tr>
+                </tbody>
             </table>
+        </div>
 
-            <h3>Analisis Usia:</h3>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-number">{bak_summary.get('age_analysis', {}).get('recent_24h', 0)}</div>
-                    <div class="stat-label">24 Jam Terakhir</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{bak_summary.get('age_analysis', {}).get('last_7_days', 0)}</div>
-                    <div class="stat-label">7 Hari Terakhir</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{bak_summary.get('age_analysis', {}).get('older_than_7_days', 0)}</div>
-                    <div class="stat-label">Lebih dari 7 Hari</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number status-warning">{len(bak_summary.get('age_analysis', {}).get('outdated_files', []))}</div>
-                    <div class="stat-label">File Tidak Modifikasi Hari Ini</div>
-                </div>
-            </div>
-
-            <h3>Performa Checklist Validasi:</h3>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-number">{bak_summary.get('checklist_summary', {}).get('total_checklists', 0)}</div>
-                    <div class="stat-label">Total Checklist</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{bak_summary.get('checklist_summary', {}).get('perfect_scores', 0)}</div>
-                    <div class="stat-label">Skor Sempurna</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{bak_summary.get('checklist_summary', {}).get('average_score', 0):.1f}%</div>
-                    <div class="stat-label">Skor Rata-rata</div>
-                </div>
-            </div>
-"""
-
-        # Add critical issues section
-        has_critical_issues = (bak_summary.get('size_validation', {}).get('size_warnings') or
-                              bak_summary.get('age_analysis', {}).get('outdated_files') or
-                              bak_summary.get('checklist_summary', {}).get('common_failures'))
-
-        if has_critical_issues:
-            body += """
-            <div class="alert-section">
-                <h2>⚠️ Masalah Kritis yang Memerlukan Perhatian Segera</h2>
-"""
-
-            # Add size warnings
-            if bak_summary.get('size_validation', {}).get('size_warnings'):
-                body += "<h3>Peringatan Validasi Ukuran:</h3><ul>"
-                for warning in bak_summary['size_validation']['size_warnings']:
-                    body += f"<li>{warning['filename']} ({warning['size']}) - {warning['backup_type']} - Di bawah ukuran minimum</li>"
-                body += "</ul>"
-
-            # Add outdated files
-            if bak_summary.get('age_analysis', {}).get('outdated_files'):
-                body += "<h3>File Tidak Dimodifikasi Hari Ini:</h3><ul>"
-                for outdated in bak_summary['age_analysis']['outdated_files']:
-                    body += f"<li>{outdated['filename']} (modifikasi {outdated['days_outdated']} hari lalu) - {outdated['backup_type']}</li>"
-                body += "</ul>"
-
-            # Add common validation failures
-            if bak_summary.get('checklist_summary', {}).get('common_failures'):
-                body += "<h3>Kegagalan Validasi Umum:</h3><ul>"
-                for failure, count in sorted(bak_summary['checklist_summary']['common_failures'].items(),
-                                         key=lambda x: x[1], reverse=True)[:5]:
-                    body += f"<li>{failure}: {count} kejadian</li>"
-                body += "</ul>"
-
-            body += "</div>"
-
-        body += f"""
         <div class="recommendations">
-            <h2>💡 Rekomendasi</h2>
+            <h2>Rekomendasi</h2>
             <ul>
 """
 
@@ -1860,7 +1962,7 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         </div>
 
         <div class="section">
-            <h2>⚙️ Informasi Sistem</h2>
+            <h2>Informasi Sistem</h2>
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-number">{'AKTIF' if self.config.getboolean('MONITORING', 'exclude_plantware', fallback=True) else 'TIDAK AKTIF'}</div>
@@ -1896,6 +1998,8 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
         total_files = len(self.summary_data)
         valid_files = sum(1 for f in self.summary_data.values() if f['status'] == 'Valid')
+        report_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        success_rate = (valid_files/total_files*100) if total_files > 0 else 0
 
         if hasattr(self, 'bak_summary'):
             bak_summary = self.bak_summary
@@ -1913,10 +2017,10 @@ SISTEM MONITORING BACKUP DATABASE - LAPORAN ANALISIS
 ==================================================
 
 Ringkasan Eksekutif:
-- Laporan Dibuat: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+- Laporan Dibuat: {report_time}
 - Total Arsip ZIP: {total_files}
 - File ZIP Valid: {valid_files}
-- Tingkat Keberhasilan: {(valid_files/total_files*100):.1f}%
+- Tingkat Keberhasilan: {success_rate:.1f} persen
 - Total File BAK: {bak_summary.get('total_bak_files', 0)}
 - Status Sistem: {'AKTIF' if valid_files > 0 else 'TIDAK AKTIF'}
 
